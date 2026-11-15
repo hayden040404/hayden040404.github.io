@@ -156,28 +156,26 @@ function scoreTeamHand(opts) {
   }
 
   if (boston) {
-    const effectiveBid = Math.max(6, bid);
+    // Boston is always a bid of exactly 6: take the first 6 tricks.
     if (bostonMade) {
-      // First 6 tricks are worth 20 each. Everything after is normal:
-      // remaining bid is (effectiveBid - 6), remaining tricks are (took - 6).
-      const rest = scoreHand(effectiveBid - 6, Math.max(0, took - 6), bagsBefore);
+      // +120 for the 6, and every trick beyond 6 is a sandbag.
+      const rest = scoreHand(0, Math.max(0, took - 6), bagsBefore);
       return {
         pts: 120 + rest.pts,
         bagsAfter: rest.bagsAfter,
         bagsThisHand: rest.bagsThisHand,
         penalty: rest.penalty,
         penaltyCount: rest.penaltyCount,
-        made: rest.made,
+        made: true,
         contract: 'boston',
         board: 0,
         bostonMade: true,
         badge: 'BOSTON'
       };
     }
-    // Missed the first 6: -20×6, plus -10 for each trick bid over 6. No bags.
-    const over = Math.max(0, effectiveBid - 6);
+    // Missed the first 6: -120. No bags, regardless of tricks taken or bid.
     return {
-      pts: -120 - 10 * over,
+      pts: -120,
       bagsAfter: bagsBefore,
       bagsThisHand: 0,
       penalty: false,
@@ -267,8 +265,8 @@ function validateContracts(hand) {
     if (board && bid !== null && bid !== cards) {
       warnings.push(team + ' boarded, so the bid should be all ' + cards + ' tricks.');
     }
-    if (boston && bid !== null && bid < 6 && cards >= 6) {
-      warnings.push(team + ' declared Boston, so the bid should be at least 6.');
+    if (boston && bid !== null && bid !== 6 && cards >= 6) {
+      warnings.push(team + ' declared Boston, so the bid should be 6.');
     }
   });
   if (hand.aBostonMade === true && hand.bBostonMade === true) {

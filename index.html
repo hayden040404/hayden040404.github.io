@@ -316,6 +316,7 @@
       line-height: 1;
     }
     .stepper .nudge:active { background: var(--gold-dim); }
+    .stepper.locked .nudge, .stepper.locked .value { opacity: 0.5; cursor: default; }
     .stepper .value {
       height: 44px;
       border-radius: 12px;
@@ -732,7 +733,7 @@
       } else {
         var v = clamp(Number(value), 0, cards);
         if (!isFinite(v)) v = 0;
-        if (field === 'Bid' && hand[side + 'Boston'] && v < 6 && cards >= 6) v = 6;
+        if (field === 'Bid' && hand[side + 'Boston']) v = 6;
         hand[key] = v;
         if (field === 'Bid' && hand[side + 'Board'] && v !== cards) {
           hand[side + 'Board'] = 0;
@@ -781,9 +782,7 @@
       hand[side + 'Boston'] = on;
       if (on) {
         hand[side + 'Board'] = 0;
-        if (!BA.isFilled(hand[side + 'Bid']) || Number(hand[side + 'Bid']) < 6) {
-          hand[side + 'Bid'] = 6;
-        }
+        hand[side + 'Bid'] = 6;
       } else {
         hand[side + 'BostonMade'] = null;
       }
@@ -910,20 +909,18 @@
         bagTicks(bags) +
         '</button>';
     }
-    function stepper(index, side, field, value, cards) {
+    function stepper(index, side, field, value, cards, locked) {
       var shown = (value === null || value === undefined) ? '\u2014' : String(value);
-      return '<div class="stepper">' +
-        '<button class="nudge" type="button" data-act="step" data-index="' + index + '" data-side="' + side + '" data-field="' + field + '" data-delta="-1" aria-label="Decrease">\u2212</button>' +
-        '<button class="value" type="button" data-act="open-pad" data-index="' + index + '" data-side="' + side + '" data-field="' + field + '" aria-label="Enter number">' + shown + '</button>' +
-        '<button class="nudge" type="button" data-act="step" data-index="' + index + '" data-side="' + side + '" data-field="' + field + '" data-delta="1" aria-label="Increase">+</button>' +
+      var dis = locked ? ' disabled' : '';
+      return '<div class="stepper' + (locked ? ' locked' : '') + '">' +
+        '<button class="nudge" type="button" data-act="step" data-index="' + index + '" data-side="' + side + '" data-field="' + field + '" data-delta="-1" aria-label="Decrease"' + dis + '>\u2212</button>' +
+        '<button class="value" type="button" data-act="open-pad" data-index="' + index + '" data-side="' + side + '" data-field="' + field + '" aria-label="Enter number"' + dis + '>' + shown + '</button>' +
+        '<button class="nudge" type="button" data-act="step" data-index="' + index + '" data-side="' + side + '" data-field="' + field + '" data-delta="1" aria-label="Increase"' + dis + '>+</button>' +
         '</div>';
     }
     function previewLine(result) {
       if (!result) return '';
       var badge = result.badge ? '<span class="badge">' + esc(result.badge) + '</span> ' : '';
-      if (result.contract === 'boston' && result.bostonMade && !result.made) {
-        return '<div class="preview set">' + badge + fmtPts(result.pts, true) + ' \u00b7 short of bid</div>';
-      }
       if (!result.made) return '<div class="preview set">' + badge + 'SET ' + fmtPts(result.pts, true) + '</div>';
       if (result.penalty) {
         return '<div class="preview penalty">' + badge + fmtPts(result.pts, true) + ' \u00b7 bags out</div>';
@@ -1006,7 +1003,7 @@
         var team = side === 'a' ? state.game.teamA : state.game.teamB;
         var live = side === 'a' ? prevALive : prevBLive;
         html += '<div class="team-col"><div class="col-name">' + esc(team.name) + '</div>';
-        html += '<div class="stat"><div class="slabel">Bid</div>' + stepper(index, side, 'Bid', hand[side + 'Bid'], hand.cards) + contractPicker(index, side, hand) + '</div>';
+        html += '<div class="stat"><div class="slabel">Bid</div>' + stepper(index, side, 'Bid', hand[side + 'Bid'], hand.cards, !!hand[side + 'Boston'] || !!hand[side + 'Board']) + contractPicker(index, side, hand) + '</div>';
         if (hand[side + 'Boston']) {
           html += '<div class="stat"><div class="slabel">Took first 6?</div><div class="yn">';
           html += '<button type="button" class="' + (hand[side + 'BostonMade'] === true ? 'on-yes' : '') + '" data-act="set-boston-made" data-index="' + index + '" data-side="' + side + '" data-value="true">Yes</button>';
@@ -1096,7 +1093,7 @@
           '<li><b>Make your bid:</b> +10 per trick bid, +1 per extra trick (a bag).</li>' +
           '<li><b>Get set:</b> \u221210 per trick bid when you take fewer than you bid.</li>' +
           '<li><b>Board:</b> bid to take every trick. Those tricks are worth a multiplier, win or set \u2014 Board x2 (20 each), Double Board x4 (40), Triple Board x6 (60), Quadruple Board x8 (80). No bags.</li>' +
-          '<li><b>Boston</b> (hands of 6 or more cards): take the <b>first 6</b> tricks. Those 6 are worth 20 each (+120). Everything after that is scored normally. Miss the first 6 and you lose 120, plus 10 for each trick bid over 6.</li>' +
+          '<li><b>Boston</b> (hands of 6 or more cards) is a bid of <b>6</b>: take the <b>first 6</b> tricks, worth 20 each (+120). Every trick beyond 6 is a sandbag (+1, and counts toward the 10-bag \u2212100 penalty). Miss the first 6 and you lose 120.</li>' +
           '<li>Every time a team\u2019s bags reach 10: <b>\u2212100</b> and the bag count drops by 10.</li>' +
           '<li>After the last hand, the team with the most points wins.</li>' +
           '</ul><button class="primary" type="button" data-act="close-sheet">Got it</button>';
