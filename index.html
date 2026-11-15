@@ -326,6 +326,78 @@
       font-variant-numeric: tabular-nums;
       letter-spacing: -0.03em;
     }
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin: 6px 0 8px;
+    }
+    .chip {
+      flex: 1 1 calc(50% - 6px);
+      min-height: 36px;
+      padding: 6px 4px;
+      border-radius: 10px;
+      background: var(--elevated);
+      border: 1px solid var(--line);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      text-align: center;
+      line-height: 1.2;
+    }
+    .chip .sub {
+      display: block;
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+    }
+    .chip.on {
+      border-color: var(--gold);
+      box-shadow: 0 0 0 2px var(--gold);
+      background: var(--gold-dim);
+      color: var(--gold);
+    }
+    .chip.on .sub { color: var(--gold); }
+    .chip:disabled { opacity: 0.35; }
+    .yn {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+    .yn button {
+      min-height: 40px;
+      border-radius: 10px;
+      background: var(--elevated);
+      border: 1px solid var(--line);
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .yn button.on-yes {
+      border-color: var(--green);
+      box-shadow: 0 0 0 2px var(--green);
+      color: var(--green);
+      background: rgba(62, 207, 142, 0.12);
+    }
+    .yn button.on-no {
+      border-color: var(--red);
+      box-shadow: 0 0 0 2px var(--red);
+      color: var(--red);
+      background: rgba(244, 91, 105, 0.12);
+    }
+    .badge {
+      display: inline-block;
+      font-size: 9px;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--navy);
+      background: var(--gold);
+      border-radius: 999px;
+      padding: 1px 6px;
+      margin: 0 0 3px;
+      white-space: nowrap;
+    }
     .preview {
       margin-top: 4px;
       font-size: 13px;
@@ -660,7 +732,11 @@
       } else {
         var v = clamp(Number(value), 0, cards);
         if (!isFinite(v)) v = 0;
+        if (field === 'Bid' && hand[side + 'Boston'] && v < 6 && cards >= 6) v = 6;
         hand[key] = v;
+        if (field === 'Bid' && hand[side + 'Board'] && v !== cards) {
+          hand[side + 'Board'] = 0;
+        }
         if (field === 'Took') {
           var other = side === 'a' ? 'b' : 'a';
           hand[other + 'Took'] = cards - v;
@@ -683,12 +759,55 @@
       persist();
       render();
     }
+    function setBoard(index, side, mult) {
+      pushUndo();
+      var hand = state.game.hands[index];
+      var next = BA.normalizeBoard(mult);
+      if (hand[side + 'Board'] === next) next = 0;
+      hand[side + 'Board'] = next;
+      if (next) {
+        hand[side + 'Boston'] = false;
+        hand[side + 'BostonMade'] = null;
+        hand[side + 'Bid'] = hand.cards;
+      }
+      persist();
+      render();
+    }
+    function setBoston(index, side) {
+      if (state.game.hands[index].cards < 6) return;
+      pushUndo();
+      var hand = state.game.hands[index];
+      var on = !hand[side + 'Boston'];
+      hand[side + 'Boston'] = on;
+      if (on) {
+        hand[side + 'Board'] = 0;
+        if (!BA.isFilled(hand[side + 'Bid']) || Number(hand[side + 'Bid']) < 6) {
+          hand[side + 'Bid'] = 6;
+        }
+      } else {
+        hand[side + 'BostonMade'] = null;
+      }
+      persist();
+      render();
+    }
+    function setBostonMade(index, side, value) {
+      pushUndo();
+      var hand = state.game.hands[index];
+      if (hand[side + 'BostonMade'] === value) hand[side + 'BostonMade'] = null;
+      else hand[side + 'BostonMade'] = value;
+      persist();
+      render();
+    }
+    function bostonAnswered(hand, side) {
+      return !hand[side + 'Boston'] || hand[side + 'BostonMade'] === true || hand[side + 'BostonMade'] === false;
+    }
     function recordHand(index) {
       var hand = state.game.hands[index];
       if (!BA.isHandComplete(hand)) return;
       var tricks = BA.validateTricks(hand.cards, hand.aTook, hand.bTook);
       var bids = BA.validateBids(hand.cards, hand.aBid, hand.bBid);
-      if (!tricks.ok || !bids.ok) return;
+      var contracts = BA.validateContracts(hand);
+      if (!tricks.ok || !bids.ok || !contracts.ok) return;
       pushUndo();
       hand.recorded = true;
       state.editingIndex = null;
@@ -704,7 +823,8 @@
         var hand = state.game.hands[i];
         if (hand.recorded) {
           var tricks = BA.validateTricks(hand.cards, hand.aTook, hand.bTook);
-          if (!tricks.ok) return;
+          var contracts = BA.validateContracts(hand);
+          if (!tricks.ok || !contracts.ok) return;
         }
       }
       state.editingIndex = null;
@@ -800,12 +920,30 @@
     }
     function previewLine(result) {
       if (!result) return '';
-      if (!result.made) return '<div class="preview set">SET ' + fmtPts(result.pts, true) + '</div>';
+      var badge = result.badge ? '<span class="badge">' + esc(result.badge) + '</span> ' : '';
+      if (result.contract === 'boston' && result.bostonMade && !result.made) {
+        return '<div class="preview set">' + badge + fmtPts(result.pts, true) + ' \u00b7 short of bid</div>';
+      }
+      if (!result.made) return '<div class="preview set">' + badge + 'SET ' + fmtPts(result.pts, true) + '</div>';
       if (result.penalty) {
-        return '<div class="preview penalty">' + fmtPts(result.pts, true) + ' \u00b7 bags out</div>';
+        return '<div class="preview penalty">' + badge + fmtPts(result.pts, true) + ' \u00b7 bags out</div>';
       }
       var extra = result.bagsThisHand ? ' \u00b7 ' + result.bagsThisHand + ' bag' + (result.bagsThisHand === 1 ? '' : 's') : '';
-      return '<div class="preview made">MADE ' + fmtPts(result.pts, true) + extra + '</div>';
+      return '<div class="preview made">' + badge + 'MADE ' + fmtPts(result.pts, true) + extra + '</div>';
+    }
+    function contractPicker(index, side, hand) {
+      var html = '<div class="chips" role="group" aria-label="Board level">';
+      BA.BOARD_LEVELS.forEach(function (lvl) {
+        var on = BA.normalizeBoard(hand[side + 'Board']) === lvl.mult;
+        var label = lvl.mult
+          ? esc(lvl.short) + '<span class="sub">x' + lvl.mult + '</span>'
+          : esc(lvl.short);
+        html += '<button class="chip' + (on ? ' on' : '') + '" type="button" data-act="set-board" data-index="' + index + '" data-side="' + side + '" data-mult="' + lvl.mult + '">' + label + '</button>';
+      });
+      html += '</div>';
+      var canBoston = hand.cards >= 6;
+      html += '<div class="chips"><button class="chip' + (hand[side + 'Boston'] ? ' on' : '') + '" type="button" data-act="set-boston" data-index="' + index + '" data-side="' + side + '"' + (canBoston ? '' : ' disabled') + '>Boston' + (canBoston ? '' : '<span class="sub">6+ cards</span>') + '</button></div>';
+      return html;
     }
     function renderHandEditor(index, score) {
       var hand = state.game.hands[index];
@@ -819,8 +957,9 @@
       var bidCheck = BA.isFilled(hand.aBid) && BA.isFilled(hand.bBid)
         ? BA.validateBids(hand.cards, hand.aBid, hand.bBid)
         : { ok: true, warnings: [] };
-      var canRecord = BA.isHandComplete(hand) && trickCheck.ok && bidCheck.ok;
-      var warnings = [].concat(bidCheck.ok ? [] : bidCheck.warnings, trickCheck.ok ? [] : trickCheck.warnings);
+      var contractCheck = BA.validateContracts(hand);
+      var canRecord = BA.isHandComplete(hand) && trickCheck.ok && bidCheck.ok && contractCheck.ok;
+      var warnings = [].concat(bidCheck.ok ? [] : bidCheck.warnings, trickCheck.ok ? [] : trickCheck.warnings, contractCheck.ok ? [] : contractCheck.warnings);
       var bidHint = '';
       if (BA.isFilled(hand.aBid) && BA.isFilled(hand.bBid)) {
         var bidSum = Number(hand.aBid) + Number(hand.bBid);
@@ -833,11 +972,22 @@
         prevA = score.results[index - 1].a.bags;
         prevB = score.results[index - 1].b.bags;
       }
-      var prevALive = null, prevBLive = null;
-      if (BA.isHandComplete(hand) && trickCheck.ok) {
-        prevALive = BA.scoreHand(Number(hand.aBid), Number(hand.aTook), prevA);
-        prevBLive = BA.scoreHand(Number(hand.bBid), Number(hand.bTook), prevB);
+      function liveScore(side, bags) {
+        if (!BA.isFilled(hand[side + 'Bid']) || !BA.isFilled(hand[side + 'Took'])) return null;
+        if (!bostonAnswered(hand, side)) return null;
+        if (BA.isFilled(hand.aTook) && BA.isFilled(hand.bTook) && !trickCheck.ok) return null;
+        return BA.scoreTeamHand({
+          bid: Number(hand[side + 'Bid']),
+          took: Number(hand[side + 'Took']),
+          bagsBefore: bags,
+          cards: hand.cards,
+          board: hand[side + 'Board'],
+          boston: hand[side + 'Boston'],
+          bostonMade: hand[side + 'BostonMade']
+        });
       }
+      var prevALive = liveScore('a', prevA);
+      var prevBLive = liveScore('b', prevB);
       var suits = SUIT_ORDER.map(function (s) {
         var m = SUITS[s];
         var on = hand.trump === s ? ' on' : '';
@@ -856,7 +1006,13 @@
         var team = side === 'a' ? state.game.teamA : state.game.teamB;
         var live = side === 'a' ? prevALive : prevBLive;
         html += '<div class="team-col"><div class="col-name">' + esc(team.name) + '</div>';
-        html += '<div class="stat"><div class="slabel">Bid</div>' + stepper(index, side, 'Bid', hand[side + 'Bid'], hand.cards) + '</div>';
+        html += '<div class="stat"><div class="slabel">Bid</div>' + stepper(index, side, 'Bid', hand[side + 'Bid'], hand.cards) + contractPicker(index, side, hand) + '</div>';
+        if (hand[side + 'Boston']) {
+          html += '<div class="stat"><div class="slabel">Took first 6?</div><div class="yn">';
+          html += '<button type="button" class="' + (hand[side + 'BostonMade'] === true ? 'on-yes' : '') + '" data-act="set-boston-made" data-index="' + index + '" data-side="' + side + '" data-value="true">Yes</button>';
+          html += '<button type="button" class="' + (hand[side + 'BostonMade'] === false ? 'on-no' : '') + '" data-act="set-boston-made" data-index="' + index + '" data-side="' + side + '" data-value="false">No</button>';
+          html += '</div></div>';
+        }
         html += '<div class="stat"><div class="slabel">Tricks</div>' + stepper(index, side, 'Took', hand[side + 'Took'], hand.cards) + previewLine(live) + '</div>';
         html += '</div>';
       });
@@ -890,7 +1046,9 @@
           if (!hand.recorded || r.pts === null) return '<td class="r">\u2014</td>';
           var cls2 = r.pts < 0 ? 'neg' : (r.made ? 'pos' : '');
           var bag = r.penalty ? ' bags' : '';
-          return '<td class="r"><span class="total">' + r.total + '</span><span class="delta ' + cls2 + '">' +
+          var badge = r.badge || BA.contractBadge(hand, side);
+          var badgeHtml = badge ? '<span class="badge">' + esc(badge) + '</span><br>' : '';
+          return '<td class="r">' + badgeHtml + '<span class="total">' + r.total + '</span><span class="delta ' + cls2 + '">' +
             hand[side + 'Bid'] + '\u2192' + hand[side + 'Took'] + ' \u00b7 ' + fmtPts(r.pts, true) + bag + '</span></td>';
         }
         html += '<tr class="' + cls + '"' + act + '>';
@@ -937,6 +1095,8 @@
           '<li>Partners\u2019 bids add into one team bid. <b>Whoever bid highest leads.</b></li>' +
           '<li><b>Make your bid:</b> +10 per trick bid, +1 per extra trick (a bag).</li>' +
           '<li><b>Get set:</b> \u221210 per trick bid when you take fewer than you bid.</li>' +
+          '<li><b>Board:</b> bid to take every trick. Those tricks are worth a multiplier, win or set \u2014 Board x2 (20 each), Double Board x4 (40), Triple Board x6 (60), Quadruple Board x8 (80). No bags.</li>' +
+          '<li><b>Boston</b> (hands of 6 or more cards): take the <b>first 6</b> tricks. Those 6 are worth 20 each (+120). Everything after that is scored normally. Miss the first 6 and you lose 120, plus 10 for each trick bid over 6.</li>' +
           '<li>Every time a team\u2019s bags reach 10: <b>\u2212100</b> and the bag count drops by 10.</li>' +
           '<li>After the last hand, the team with the most points wins.</li>' +
           '</ul><button class="primary" type="button" data-act="close-sheet">Got it</button>';
@@ -1050,6 +1210,9 @@
       else if (act === 'confirm-newgame') startNewGame();
       else if (act === 'dismiss-tip') { state.prefs.tipDismissed = true; persist(); render(); }
       else if (act === 'set-trump') { setTrump(index, t.getAttribute('data-suit')); }
+      else if (act === 'set-board') { setBoard(index, t.getAttribute('data-side'), Number(t.getAttribute('data-mult'))); }
+      else if (act === 'set-boston') { setBoston(index, t.getAttribute('data-side')); }
+      else if (act === 'set-boston-made') { setBostonMade(index, t.getAttribute('data-side'), t.getAttribute('data-value') === 'true'); }
       else if (act === 'step') {
         stepVal(index, t.getAttribute('data-side'), t.getAttribute('data-field'), Number(t.getAttribute('data-delta')));
       }
@@ -1098,6 +1261,12 @@
           aTook: BA.isFilled(h.aTook) ? Number(h.aTook) : null,
           bBid: BA.isFilled(h.bBid) ? Number(h.bBid) : null,
           bTook: BA.isFilled(h.bTook) ? Number(h.bTook) : null,
+          aBoard: BA.normalizeBoard(h.aBoard),
+          bBoard: BA.normalizeBoard(h.bBoard),
+          aBoston: !!h.aBoston,
+          bBoston: !!h.bBoston,
+          aBostonMade: h.aBostonMade === true ? true : (h.aBostonMade === false ? false : null),
+          bBostonMade: h.bBostonMade === true ? true : (h.bBostonMade === false ? false : null),
           recorded: !!h.recorded || (BA.isHandComplete(h) && h.recorded !== false)
         };
       });

@@ -11,6 +11,16 @@ const HANDS_CARDS = Object.freeze([
 
 const SUITS = Object.freeze(['spades', 'hearts', 'diamonds', 'clubs']);
 
+const BOARD_LEVELS = Object.freeze([
+  { mult: 0, key: 'none', short: 'None', badge: '' },
+  { mult: 2, key: 'board', short: 'Board', badge: 'BOARD x2' },
+  { mult: 4, key: 'double', short: 'Double', badge: 'DOUBLE BOARD x4' },
+  { mult: 6, key: 'triple', short: 'Triple', badge: 'TRIPLE BOARD x6' },
+  { mult: 8, key: 'quadruple', short: 'Quad', badge: 'QUADRUPLE BOARD x8' }
+]);
+
+const BOARD_MULTS = Object.freeze([0, 2, 4, 6, 8]);
+
 function handMeta(index) {
   const cards = HANDS_CARDS[index];
   const river = index <= 12 ? 'down' : 'up';
@@ -34,7 +44,13 @@ function createHands() {
       aBid: null,
       aTook: null,
       bBid: null,
-      bTook: null
+      bTook: null,
+      aBoard: 0,
+      bBoard: 0,
+      aBoston: false,
+      bBoston: false,
+      aBostonMade: null,
+      bBostonMade: null
     };
   });
 }
@@ -43,12 +59,33 @@ function isFilled(value) {
   return value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value));
 }
 
+function normalizeBoard(value) {
+  const n = Number(value);
+  return BOARD_MULTS.indexOf(n) >= 0 ? n : 0;
+}
+
+function boardBadge(mult) {
+  const level = BOARD_LEVELS.find(function (l) { return l.mult === normalizeBoard(mult); });
+  return level && level.badge ? level.badge : '';
+}
+
+function contractBadge(hand, side) {
+  if (hand[side + 'Boston']) return 'BOSTON';
+  return boardBadge(hand[side + 'Board']);
+}
+
+function bostonAnswered(hand, side) {
+  if (!hand[side + 'Boston']) return true;
+  return hand[side + 'BostonMade'] === true || hand[side + 'BostonMade'] === false;
+}
+
 function isHandComplete(hand) {
-  return isFilled(hand.aBid) && isFilled(hand.aTook) && isFilled(hand.bBid) && isFilled(hand.bTook);
+  return isFilled(hand.aBid) && isFilled(hand.aTook) && isFilled(hand.bBid) && isFilled(hand.bTook)
+    && bostonAnswered(hand, 'a') && bostonAnswered(hand, 'b');
 }
 
 /**
- * Score one team for a single hand.
+ * Score one team for a single normal (non-board, non-Boston) hand.
  * Making the bid: +10 per trick bid, +1 per extra trick (a bag).
  * Getting set (took < bid): -10 per trick bid, bags unchanged.
  * Each time bags reach 10: -100 and subtract 10 bags (can happen more than once).
@@ -73,7 +110,8 @@ function scoreHand(bid, took, bagsBefore) {
       bagsThisHand: bagsThisHand,
       penalty: penaltyCount > 0,
       penaltyCount: penaltyCount,
-      made: true
+      made: true,
+      contract: 'normal'
     };
   }
   return {
@@ -82,7 +120,89 @@ function scoreHand(bid, took, bagsBefore) {
     bagsThisHand: 0,
     penalty: false,
     penaltyCount: 0,
-    made: false
+    made: false,
+    contract: 'normal'
+  };
+}
+
+/**
+ * Score one team for a hand, including Board and Boston contracts.
+ * opts: { bid, took, bagsBefore, cards, board, boston, bostonMade }
+ */
+function scoreTeamHand(opts) {
+  const bid = Number(opts.bid);
+  const took = Number(opts.took);
+  const bagsBefore = Number(opts.bagsBefore);
+  const cards = Number(opts.cards);
+  const board = normalizeBoard(opts.board);
+  const boston = !!opts.boston && cards >= 6;
+  const bostonMade = opts.bostonMade === true;
+
+  if (board) {
+    const made = took >= cards;
+    const pts = (made ? 1 : -1) * board * 10 * cards;
+    return {
+      pts: pts,
+      bagsAfter: bagsBefore,
+      bagsThisHand: 0,
+      penalty: false,
+      penaltyCount: 0,
+      made: made,
+      contract: 'board',
+      board: board,
+      bostonMade: null,
+      badge: boardBadge(board)
+    };
+  }
+
+  if (boston) {
+    const effectiveBid = Math.max(6, bid);
+    if (bostonMade) {
+      // First 6 tricks are worth 20 each. Everything after is normal:
+      // remaining bid is (effectiveBid - 6), remaining tricks are (took - 6).
+      const rest = scoreHand(effectiveBid - 6, Math.max(0, took - 6), bagsBefore);
+      return {
+        pts: 120 + rest.pts,
+        bagsAfter: rest.bagsAfter,
+        bagsThisHand: rest.bagsThisHand,
+        penalty: rest.penalty,
+        penaltyCount: rest.penaltyCount,
+        made: rest.made,
+        contract: 'boston',
+        board: 0,
+        bostonMade: true,
+        badge: 'BOSTON'
+      };
+    }
+    // Missed the first 6: -20×6, plus -10 for each trick bid over 6. No bags.
+    const over = Math.max(0, effectiveBid - 6);
+    return {
+      pts: -120 - 10 * over,
+      bagsAfter: bagsBefore,
+      bagsThisHand: 0,
+      penalty: false,
+      penaltyCount: 0,
+      made: false,
+      contract: 'boston',
+      board: 0,
+      bostonMade: false,
+      badge: 'BOSTON'
+    };
+  }
+
+  const normal = scoreHand(bid, took, bagsBefore);
+  return Object.assign({}, normal, { board: 0, bostonMade: null, badge: '' });
+}
+
+function teamOpts(hand, side, bagsBefore) {
+  return {
+    bid: hand[side + 'Bid'],
+    took: hand[side + 'Took'],
+    bagsBefore: bagsBefore,
+    cards: hand.cards,
+    board: hand[side + 'Board'],
+    boston: hand[side + 'Boston'],
+    bostonMade: hand[side + 'BostonMade']
   };
 }
 
@@ -126,6 +246,37 @@ function validateBids(cards, aBid, bBid) {
   return { ok: warnings.length === 0, warnings: warnings };
 }
 
+function validateContracts(hand) {
+  const warnings = [];
+  const cards = Number(hand.cards);
+  ['a', 'b'].forEach(function (side, i) {
+    const team = i === 0 ? 'Team A' : 'Team B';
+    const board = normalizeBoard(hand[side + 'Board']);
+    const boston = !!hand[side + 'Boston'];
+    const took = isFilled(hand[side + 'Took']) ? Number(hand[side + 'Took']) : null;
+    const bid = isFilled(hand[side + 'Bid']) ? Number(hand[side + 'Bid']) : null;
+    if (board && boston) warnings.push(team + ' can’t bid Board and Boston on the same hand.');
+    if (boston && cards < 6) warnings.push(team + ' can’t bid Boston on a hand with fewer than 6 cards.');
+    if (boston && !bostonAnswered(hand, side)) warnings.push('Say whether ' + team + ' took the first 6 tricks.');
+    if (boston && hand[side + 'BostonMade'] === true && took !== null && took < 6) {
+      warnings.push(team + ' can’t have taken the first 6 with only ' + took + ' trick' + (took === 1 ? '' : 's') + ' total.');
+    }
+    if (boston && hand[side + 'BostonMade'] === false && took !== null && took === cards && cards >= 6) {
+      warnings.push(team + ' took every trick, so they also took the first 6.');
+    }
+    if (board && bid !== null && bid !== cards) {
+      warnings.push(team + ' boarded, so the bid should be all ' + cards + ' tricks.');
+    }
+    if (boston && bid !== null && bid < 6 && cards >= 6) {
+      warnings.push(team + ' declared Boston, so the bid should be at least 6.');
+    }
+  });
+  if (hand.aBostonMade === true && hand.bBostonMade === true) {
+    warnings.push('Both teams can’t have taken the first 6 tricks.');
+  }
+  return { ok: warnings.length === 0, warnings: warnings };
+}
+
 /**
  * Walk every hand in order and return per-hand results plus running totals.
  * Incomplete hands are skipped for scoring (running totals carry through).
@@ -139,14 +290,15 @@ function scoreGame(hands) {
     if (!isHandComplete(hand)) {
       return {
         complete: false,
-        a: { pts: null, total: aTotal, bags: aBags, penalty: false, penaltyCount: 0, made: null, bagsThisHand: 0 },
-        b: { pts: null, total: bTotal, bags: bBags, penalty: false, penaltyCount: 0, made: null, bagsThisHand: 0 },
+        a: { pts: null, total: aTotal, bags: aBags, penalty: false, penaltyCount: 0, made: null, bagsThisHand: 0, contract: null, badge: '' },
+        b: { pts: null, total: bTotal, bags: bBags, penalty: false, penaltyCount: 0, made: null, bagsThisHand: 0, contract: null, badge: '' },
         warnings: []
       };
     }
     const trickCheck = validateTricks(hand.cards, hand.aTook, hand.bTook);
-    const a = scoreHand(Number(hand.aBid), Number(hand.aTook), aBags);
-    const b = scoreHand(Number(hand.bBid), Number(hand.bTook), bBags);
+    const contractCheck = validateContracts(hand);
+    const a = scoreTeamHand(teamOpts(hand, 'a', aBags));
+    const b = scoreTeamHand(teamOpts(hand, 'b', bBags));
     aTotal += a.pts;
     bTotal += b.pts;
     aBags = a.bagsAfter;
@@ -155,7 +307,7 @@ function scoreGame(hands) {
       complete: true,
       a: Object.assign({}, a, { total: aTotal, bags: aBags }),
       b: Object.assign({}, b, { total: bTotal, bags: bBags }),
-      warnings: trickCheck.warnings
+      warnings: trickCheck.warnings.concat(contractCheck.warnings)
     };
   });
 
@@ -184,13 +336,20 @@ function firstIncompleteIndex(hands) {
 const api = {
   HANDS_CARDS: HANDS_CARDS,
   SUITS: SUITS,
+  BOARD_LEVELS: BOARD_LEVELS,
+  BOARD_MULTS: BOARD_MULTS,
   handMeta: handMeta,
   createHands: createHands,
   isFilled: isFilled,
   isHandComplete: isHandComplete,
+  normalizeBoard: normalizeBoard,
+  boardBadge: boardBadge,
+  contractBadge: contractBadge,
   scoreHand: scoreHand,
+  scoreTeamHand: scoreTeamHand,
   validateTricks: validateTricks,
   validateBids: validateBids,
+  validateContracts: validateContracts,
   scoreGame: scoreGame,
   firstIncompleteIndex: firstIncompleteIndex
 };
