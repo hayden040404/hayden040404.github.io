@@ -156,13 +156,18 @@ function scoreTeamHand(opts) {
   }
 
   if (boston) {
-    // Boston is always a bid of exactly 6: take the first 6 tricks.
-    // Made: +120, plus +1 per trick over 6. Failed: exactly -120 (bags add no points).
-    // Either way, tricks over 6 are sandbags and count toward the 10-bag -100 penalty.
-    const bagsThisHand = Math.max(0, took - 6);
+    // Boston is a bid of 6 or more. You must take the first 6 and at least the bid.
+    // Made: +120 + 10*(bid-6) + 1 per trick over the bid (bags).
+    // Failed (missed first 6, or took < bid): -20*bid, no bag points.
+    // Bags = max(0, took - bid) and count toward the 10-bag -100 penalty either way.
+    const effectiveBid = Math.max(6, bid);
+    const bagsThisHand = Math.max(0, took - effectiveBid);
+    const made = bostonMade === true && took >= effectiveBid;
     let bags = bagsBefore + bagsThisHand;
     let penaltyCount = 0;
-    let pts = bostonMade ? 120 + bagsThisHand : -120;
+    let pts = made
+      ? 120 + 10 * (effectiveBid - 6) + bagsThisHand
+      : -20 * effectiveBid;
     while (bags >= 10) {
       pts -= 100;
       bags -= 10;
@@ -174,10 +179,10 @@ function scoreTeamHand(opts) {
       bagsThisHand: bagsThisHand,
       penalty: penaltyCount > 0,
       penaltyCount: penaltyCount,
-      made: bostonMade,
+      made: made,
       contract: 'boston',
       board: 0,
-      bostonMade: bostonMade,
+      bostonMade: bostonMade === true,
       badge: 'BOSTON'
     };
   }
@@ -259,8 +264,8 @@ function validateContracts(hand) {
     if (board && bid !== null && bid !== cards) {
       warnings.push(team + ' boarded, so the bid should be all ' + cards + ' tricks.');
     }
-    if (boston && bid !== null && bid !== 6 && cards >= 6) {
-      warnings.push(team + ' declared Boston, so the bid should be 6.');
+    if (boston && bid !== null && (bid < 6 || bid > cards) && cards >= 6) {
+      warnings.push(team + ' declared Boston, so the bid should be 6 to ' + cards + '.');
     }
   });
   if (hand.aBostonMade === true && hand.bBostonMade === true) {

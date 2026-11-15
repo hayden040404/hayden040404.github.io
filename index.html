@@ -733,7 +733,7 @@
       } else {
         var v = clamp(Number(value), 0, cards);
         if (!isFinite(v)) v = 0;
-        if (field === 'Bid' && hand[side + 'Boston']) v = 6;
+        if (field === 'Bid' && hand[side + 'Boston'] && cards >= 6) v = Math.max(6, v);
         hand[key] = v;
         if (field === 'Bid' && hand[side + 'Board'] && v !== cards) {
           hand[side + 'Board'] = 0;
@@ -782,7 +782,9 @@
       hand[side + 'Boston'] = on;
       if (on) {
         hand[side + 'Board'] = 0;
-        hand[side + 'Bid'] = 6;
+        if (!BA.isFilled(hand[side + 'Bid']) || Number(hand[side + 'Bid']) < 6) {
+          hand[side + 'Bid'] = 6;
+        }
       } else {
         hand[side + 'BostonMade'] = null;
       }
@@ -1011,7 +1013,7 @@
         var team = side === 'a' ? state.game.teamA : state.game.teamB;
         var live = side === 'a' ? prevALive : prevBLive;
         html += '<div class="team-col"><div class="col-name">' + esc(team.name) + '</div>';
-        html += '<div class="stat"><div class="slabel">Bid</div>' + stepper(index, side, 'Bid', hand[side + 'Bid'], hand.cards, !!hand[side + 'Boston'] || !!hand[side + 'Board']) + contractPicker(index, side, hand) + '</div>';
+        html += '<div class="stat"><div class="slabel">Bid</div>' + stepper(index, side, 'Bid', hand[side + 'Bid'], hand.cards, !!hand[side + 'Board']) + contractPicker(index, side, hand) + '</div>';
         if (hand[side + 'Boston']) {
           html += '<div class="stat"><div class="slabel">Took first 6?</div><div class="yn">';
           html += '<button type="button" class="' + (hand[side + 'BostonMade'] === true ? 'on-yes' : '') + '" data-act="set-boston-made" data-index="' + index + '" data-side="' + side + '" data-value="true">Yes</button>';
@@ -1105,7 +1107,7 @@
           '<li><b>Make your bid:</b> +10 per trick bid, +1 per extra trick (a bag).</li>' +
           '<li><b>Get set:</b> \u221210 per trick bid when you take fewer than you bid.</li>' +
           '<li><b>Board:</b> bid to take every trick. Those tricks are worth a multiplier, win or set \u2014 Board x2 (20 each), Double Board x4 (40), Triple Board x6 (60), Quadruple Board x8 (80). No bags.</li>' +
-          '<li><b>Boston</b> (hands of 6 or more cards) is a bid of <b>6</b>: take the <b>first 6</b> tricks. Make it and those 6 are worth 20 each (+120), plus +1 for every trick beyond 6. Miss the first 6 and you lose 120 — tricks beyond 6 are still sandbags (they count toward the 10-bag \u2212100 penalty, but they don\u2019t add +1 points).</li>' +
+          '<li><b>Boston</b> (hands of 6 or more cards) is a bid of <b>6 or more</b>. You must take the <b>first 6</b> tricks and at least as many as you bid. Make it: +120 for the first 6, +10 for each trick bid over 6, and +1 for every trick over the bid (a bag). Miss the first 6, or take fewer than you bid: \u221220 per trick bid. Tricks over the bid are still sandbags (they count toward the 10-bag \u2212100 penalty; only a made Boston gets the +1 bag points).</li>' +
           '<li>Every time a team\u2019s bags reach 10: <b>\u2212100</b> and the bag count drops by 10.</li>' +
           '<li>After the last hand, the team with the most points wins.</li>' +
           '</ul><button class="primary" type="button" data-act="close-sheet">Got it</button>';
@@ -1143,9 +1145,10 @@
         var fieldLabel = sh.field === 'Bid' ? 'bid' : 'tricks taken';
         var cur = hand[sh.side + sh.field];
         inner = '<h2>' + esc(team.name) + ' ' + fieldLabel + '</h2>';
-        inner += '<p style="margin-bottom:12px;color:var(--muted)">' + hand.cards + '-card hand</p>';
+        inner += '<p style="margin-bottom:12px;color:var(--muted)">' + hand.cards + '-card hand' + (sh.field === 'Bid' && hand[sh.side + 'Boston'] ? ' \u00b7 Boston bid is 6 or more' : '') + '</p>';
         inner += '<div class="pad-grid">';
-        for (var n = 0; n <= hand.cards; n++) {
+        var padMin = (sh.field === 'Bid' && hand[sh.side + 'Boston'] && hand.cards >= 6) ? 6 : 0;
+        for (var n = padMin; n <= hand.cards; n++) {
           inner += '<button type="button" class="' + (cur === n ? 'on' : '') + '" data-act="pad-set" data-value="' + n + '">' + n + '</button>';
         }
         inner += '</div><button class="secondary" type="button" data-act="close-sheet">Cancel</button>';
