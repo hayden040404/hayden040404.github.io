@@ -157,15 +157,23 @@ function scoreTeamHand(opts) {
 
   if (boston) {
     // Boston is always a bid of exactly 6: take the first 6 tricks.
-    // Made: +120. Failed: -120. Either way, every trick beyond 6 is a sandbag.
-    const bagResult = scoreHand(0, Math.max(0, took - 6), bagsBefore);
-    const base = bostonMade ? 120 : -120;
+    // Made: +120, plus +1 per trick over 6. Failed: exactly -120 (bags add no points).
+    // Either way, tricks over 6 are sandbags and count toward the 10-bag -100 penalty.
+    const bagsThisHand = Math.max(0, took - 6);
+    let bags = bagsBefore + bagsThisHand;
+    let penaltyCount = 0;
+    let pts = bostonMade ? 120 + bagsThisHand : -120;
+    while (bags >= 10) {
+      pts -= 100;
+      bags -= 10;
+      penaltyCount += 1;
+    }
     return {
-      pts: base + bagResult.pts,
-      bagsAfter: bagResult.bagsAfter,
-      bagsThisHand: bagResult.bagsThisHand,
-      penalty: bagResult.penalty,
-      penaltyCount: bagResult.penaltyCount,
+      pts: pts,
+      bagsAfter: bags,
+      bagsThisHand: bagsThisHand,
+      penalty: penaltyCount > 0,
+      penaltyCount: penaltyCount,
       made: bostonMade,
       contract: 'boston',
       board: 0,
