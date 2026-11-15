@@ -157,33 +157,19 @@ function scoreTeamHand(opts) {
 
   if (boston) {
     // Boston is always a bid of exactly 6: take the first 6 tricks.
-    if (bostonMade) {
-      // +120 for the 6, and every trick beyond 6 is a sandbag.
-      const rest = scoreHand(0, Math.max(0, took - 6), bagsBefore);
-      return {
-        pts: 120 + rest.pts,
-        bagsAfter: rest.bagsAfter,
-        bagsThisHand: rest.bagsThisHand,
-        penalty: rest.penalty,
-        penaltyCount: rest.penaltyCount,
-        made: true,
-        contract: 'boston',
-        board: 0,
-        bostonMade: true,
-        badge: 'BOSTON'
-      };
-    }
-    // Missed the first 6: -120. No bags, regardless of tricks taken or bid.
+    // Made: +120. Failed: -120. Either way, every trick beyond 6 is a sandbag.
+    const bagResult = scoreHand(0, Math.max(0, took - 6), bagsBefore);
+    const base = bostonMade ? 120 : -120;
     return {
-      pts: -120,
-      bagsAfter: bagsBefore,
-      bagsThisHand: 0,
-      penalty: false,
-      penaltyCount: 0,
-      made: false,
+      pts: base + bagResult.pts,
+      bagsAfter: bagResult.bagsAfter,
+      bagsThisHand: bagResult.bagsThisHand,
+      penalty: bagResult.penalty,
+      penaltyCount: bagResult.penaltyCount,
+      made: bostonMade,
       contract: 'boston',
       board: 0,
-      bostonMade: false,
+      bostonMade: bostonMade,
       badge: 'BOSTON'
     };
   }
