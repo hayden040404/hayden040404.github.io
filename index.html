@@ -623,7 +623,8 @@
     }
     function createGame(preset) {
       preset = preset || {};
-      var hands = BA.createHands().map(function (h) {
+      var maxCards = BA.clampMaxCards(preset.maxCards);
+      var hands = BA.createHands(maxCards).map(function (h) {
         h.recorded = false;
         return h;
       });
@@ -642,6 +643,7 @@
           p2: preset.b2 || ''
         },
         firstDealer: typeof preset.firstDealer === 'number' ? preset.firstDealer : 0,
+        maxCards: maxCards,
         hands: hands,
         archived: false
       };
@@ -654,7 +656,8 @@
         tipDismissed: state.prefs.tipDismissed,
         teamA: state.game.teamA,
         teamB: state.game.teamB,
-        firstDealer: state.game.firstDealer
+        firstDealer: state.game.firstDealer,
+        lastMaxCards: state.game.maxCards
       });
     }
     function savePast() { saveJson(KEYS.past, state.past); }
@@ -862,6 +865,7 @@
         teamA: JSON.parse(JSON.stringify(g.teamA)),
         teamB: JSON.parse(JSON.stringify(g.teamB)),
         firstDealer: g.firstDealer,
+        maxCards: g.maxCards || 13,
         aTotal: s.aTotal,
         bTotal: s.bTotal,
         aBags: s.aBags,
@@ -880,13 +884,35 @@
       g.archived = true;
       savePast();
     }
+    function setMaxCards(n) {
+      if (recordedCount() > 0) return;
+      n = BA.clampMaxCards(n);
+      if ((state.game.maxCards || 13) === n) return;
+      pushUndo();
+      state.game.maxCards = n;
+      state.game.hands = BA.createHands(n).map(function (h) {
+        h.recorded = false;
+        return h;
+      });
+      state.prefs.lastMaxCards = n;
+      state.editingIndex = null;
+      persist();
+      render();
+    }
+    function riverCaption(n) {
+      n = BA.clampMaxCards(n);
+      var total = n * 2;
+      if (n === 1) return '2 hands: the 1-card hand is played twice.';
+      return total + ' hands: ' + n + ' down to 1, the 1-card hand twice, then back up to ' + n + '.';
+    }
     function startNewGame() {
       archiveGame(true);
       var g = state.game;
       state.game = createGame({
         teamA: g.teamA.name, a1: g.teamA.p1, a2: g.teamA.p2,
         teamB: g.teamB.name, b1: g.teamB.p1, b2: g.teamB.p2,
-        firstDealer: g.firstDealer
+        firstDealer: g.firstDealer,
+        maxCards: g.maxCards
       });
       state.undoStack = [];
       state.editingIndex = null;
@@ -905,6 +931,7 @@
         teamA: JSON.parse(JSON.stringify(entry.teamA)),
         teamB: JSON.parse(JSON.stringify(entry.teamB)),
         firstDealer: entry.firstDealer || 0,
+        maxCards: BA.clampMaxCards(entry.maxCards),
         hands: JSON.parse(JSON.stringify(entry.hands)),
         archived: true
       };
@@ -935,7 +962,8 @@
         state.game = createGame({
           teamA: g.teamA.name, a1: g.teamA.p1, a2: g.teamA.p2,
           teamB: g.teamB.name, b1: g.teamB.p1, b2: g.teamB.p2,
-          firstDealer: g.firstDealer
+          firstDealer: g.firstDealer,
+          maxCards: g.maxCards
         });
         state.undoStack = [];
         state.editingIndex = null;
@@ -1005,7 +1033,7 @@
     }
     function renderHandEditor(index, score) {
       var hand = state.game.hands[index];
-      var meta = BA.handMeta(index);
+      var meta = BA.handMeta(index, state.game.maxCards);
       var river = meta.river === 'down' ? 'down the river' : 'up the river';
       var d = dealerFor(index);
       var editing = hand.recorded;
@@ -1093,7 +1121,7 @@
       html += '<th class="r">' + esc(g.teamA.name) + '</th>';
       html += '<th class="r">' + esc(g.teamB.name) + '</th></tr></thead><tbody>';
       g.hands.forEach(function (hand, i) {
-        var meta = BA.handMeta(i);
+        var meta = BA.handMeta(i, g.maxCards);
         var row = score.results[i];
         var cls = 'row';
         if (i === current) cls += ' current';
@@ -1151,7 +1179,7 @@
       } else if (sh.type === 'rules') {
         inner = '<h2>House rules</h2><ul class="rules">' +
           '<li>4 players in 2 teams. 52-card deck plus Big and Little Joker.</li>' +
-          '<li>Hands go 13 down to 1, then back up to 13 \u2014 <b>26 hands</b>. The 1-card hand is played twice at the bottom of the river.</li>' +
+          '<li>Hands go from the starting card count (13 by default, or fewer if you choose) down to 1, then back up — the 1-card hand is played twice at the bottom of the river. Starting at 13 is 26 hands; starting at 8 is 16.</li>' +
           '<li>After the deal, flip a card. <b>That suit is trump.</b> If it\u2019s a joker, flip the next card.</li>' +
           '<li><b>Big Joker</b> and <b>Little Joker</b> are always the top two trumps.</li>' +
           '<li>Partners\u2019 bids add into one team bid. <b>Whoever bid highest leads.</b></li>' +
@@ -1212,6 +1240,15 @@
           inner += '<button type="button" class="' + (cur === n ? 'on' : '') + '" data-act="pad-set" data-value="' + n + '">' + n + '</button>';
         }
         inner += '</div><button class="secondary" type="button" data-act="close-sheet">Cancel</button>';
+      } else if (sh.type === 'start-pad') {
+        var startCur = BA.clampMaxCards(state.game.maxCards);
+        inner = '<h2>Start at how many cards?</h2>';
+        inner += '<p style="margin-bottom:12px;color:var(--muted)">' + esc(riverCaption(startCur)) + '</p>';
+        inner += '<div class="pad-grid">';
+        for (var n = 1; n <= 13; n++) {
+          inner += '<button type="button" class="' + (startCur === n ? 'on' : '') + '" data-act="start-pad-set" data-value="' + n + '">' + n + '</button>';
+        }
+        inner += '</div><button class="secondary" type="button" data-act="close-sheet">Cancel</button>';
       }
       return '<div class="backdrop" data-act="close-sheet"></div><div class="sheet" role="dialog" aria-modal="true"><div class="grab"></div>' + inner + '</div>';
     }
@@ -1225,7 +1262,7 @@
       var root = document.getElementById('app');
       var html = '<div class="app"><header class="chrome"><div class="brand-row">';
       html += '<div class="brand"><div class="logo">BA</div><div><h1>Back Alley</h1><div class="sub">';
-      html += played === 0 ? 'New game' : (played === 26 ? 'Final' : 'Hand ' + Math.min(played + 1, 26) + ' of 26');
+      html += played === 0 ? 'New game' : (played === g.hands.length ? 'Final' : 'Hand ' + Math.min(played + 1, g.hands.length) + ' of ' + g.hands.length);
       html += '</div></div></div><div class="top-actions">';
       html += '<button class="icon-btn" type="button" data-act="undo" ' + (state.undoStack.length ? '' : 'disabled ') + 'aria-label="Undo">';
       html += '<svg viewBox="0 0 24 24"><path d="M9 14l-4-4 4-4"/><path d="M5 10h8a6 6 0 1 1 0 12H9"/></svg></button>';
@@ -1240,10 +1277,19 @@
         html += '<div class="tip"><div>On iPhone, open this page in <strong>Safari</strong>, tap the Share button, then <strong>Add to Home Screen</strong>. It opens like an app and works offline.</div>';
         html += '<button class="x" type="button" data-act="dismiss-tip" aria-label="Dismiss">\u00d7</button></div>';
       }
-      if (played === 26 && current === -1) {
+      if (played === g.hands.length && current === -1) {
         html += '<div class="banner win"><div class="who">Game over</div><h2>' + esc(winnerLabel(score.leader, g)) + '</h2>';
         html += '<div class="final">' + esc(g.teamA.name) + ' ' + score.aTotal + ' \u00b7 ' + esc(g.teamB.name) + ' ' + score.bTotal + '</div>';
         html += '<button class="primary" type="button" data-act="open-newgame">New game</button></div>';
+      }
+      if (played === 0) {
+        var startN = BA.clampMaxCards(g.maxCards);
+        html += '<section class="hand-card start-count"><div class="label">Start at how many cards?</div>';
+        html += '<div class="stepper" style="max-width:220px;margin:0 auto 8px;">';
+        html += '<button class="nudge" type="button" data-act="start-cards" data-delta="-1" aria-label="Fewer cards">\u2212</button>';
+        html += '<button class="value" type="button" data-act="open-start-pad" aria-label="Starting card count">' + startN + '</button>';
+        html += '<button class="nudge" type="button" data-act="start-cards" data-delta="1" aria-label="More cards">+</button>';
+        html += '</div><p style="text-align:center;color:var(--muted);font-size:13px;line-height:1.4;margin:0;">' + esc(riverCaption(startN)) + '</p></section>';
       }
       if (current !== -1) html += renderHandEditor(current, score);
       html += renderHistory(score, current);
@@ -1282,6 +1328,9 @@
         render();
       }
       else if (act === 'confirm-newgame') startNewGame();
+      else if (act === 'start-cards') setMaxCards((state.game.maxCards || 13) + Number(t.getAttribute('data-delta')));
+      else if (act === 'open-start-pad') { state.sheet = { type: 'start-pad' }; render(); }
+      else if (act === 'start-pad-set') { state.sheet = null; setMaxCards(Number(t.getAttribute('data-value'))); }
       else if (act === 'dismiss-tip') { state.prefs.tipDismissed = true; persist(); render(); }
       else if (act === 'set-trump') { setTrump(index, t.getAttribute('data-suit')); }
       else if (act === 'set-board') { setBoard(index, t.getAttribute('data-side'), Number(t.getAttribute('data-mult'))); }
@@ -1325,11 +1374,12 @@
       persist();
     }
 
-    function migrateHands(hands) {
-      if (!Array.isArray(hands) || hands.length !== BA.HANDS_CARDS.length) return BA.createHands().map(function (h) { h.recorded = false; return h; });
+    function migrateHands(hands, maxCards) {
+      var list = BA.handsCardsFor(maxCards);
+      if (!Array.isArray(hands) || hands.length !== list.length) return BA.createHands(maxCards).map(function (h) { h.recorded = false; return h; });
       return hands.map(function (h, i) {
         return {
-          cards: BA.HANDS_CARDS[i],
+          cards: list[i],
           trump: SUITS[h.trump] ? h.trump : null,
           aBid: BA.isFilled(h.aBid) ? Number(h.aBid) : null,
           aTook: BA.isFilled(h.aTook) ? Number(h.aTook) : null,
@@ -1358,7 +1408,8 @@
           teamA: Object.assign({ name: 'Team A', p1: '', p2: '' }, saved.teamA),
           teamB: Object.assign({ name: 'Team B', p1: '', p2: '' }, saved.teamB),
           firstDealer: typeof saved.firstDealer === 'number' ? saved.firstDealer : 0,
-          hands: migrateHands(saved.hands),
+          maxCards: BA.clampMaxCards(saved.maxCards),
+          hands: migrateHands(saved.hands, saved.maxCards),
           archived: !!saved.archived
         };
       } else {
@@ -1366,7 +1417,8 @@
         state.game = createGame({
           teamA: p.teamA && p.teamA.name, a1: p.teamA && p.teamA.p1, a2: p.teamA && p.teamA.p2,
           teamB: p.teamB && p.teamB.name, b1: p.teamB && p.teamB.p1, b2: p.teamB && p.teamB.p2,
-          firstDealer: p.firstDealer
+          firstDealer: p.firstDealer,
+          maxCards: p.lastMaxCards
         });
       }
       render();

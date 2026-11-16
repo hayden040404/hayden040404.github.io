@@ -21,9 +21,30 @@ const BOARD_LEVELS = Object.freeze([
 
 const BOARD_MULTS = Object.freeze([0, 2, 4, 6, 8]);
 
-function handMeta(index) {
-  const cards = HANDS_CARDS[index];
-  const river = index <= 12 ? 'down' : 'up';
+function clampMaxCards(n) {
+  if (n == null || n === '') return 13;
+  n = Number(n);
+  if (!Number.isFinite(n)) return 13;
+  return Math.max(1, Math.min(13, Math.round(n)));
+}
+
+function handsCardsFor(maxCards) {
+  const size = clampMaxCards(maxCards);
+  const cards = [];
+  let i;
+  for (i = size; i >= 1; i--) cards.push(i);
+  for (i = 1; i <= size; i++) cards.push(i);
+  return cards;
+}
+
+function handMeta(index, cardsOrMax) {
+  let list;
+  if (Array.isArray(cardsOrMax)) list = cardsOrMax;
+  else if (cardsOrMax != null && cardsOrMax !== '') list = handsCardsFor(cardsOrMax);
+  else list = HANDS_CARDS;
+  const cards = list[index];
+  const top = list.length / 2;
+  const river = index < top ? 'down' : 'up';
   const shortLabel = cards === 1 ? (river === 'down' ? '1 ↓' : '1 ↑') : String(cards);
   return {
     index: index,
@@ -31,13 +52,15 @@ function handMeta(index) {
     river: river,
     shortLabel: shortLabel,
     handNumber: index + 1,
-    totalHands: HANDS_CARDS.length
+    totalHands: list.length,
+    maxCards: top
   };
 }
 
-function createHands() {
-  return HANDS_CARDS.map(function (_, i) {
-    const meta = handMeta(i);
+function createHands(maxCards) {
+  const list = handsCardsFor(maxCards == null ? 13 : maxCards);
+  return list.map(function (_, i) {
+    const meta = handMeta(i, list);
     return {
       cards: meta.cards,
       trump: null,
@@ -335,6 +358,8 @@ const api = {
   SUITS: SUITS,
   BOARD_LEVELS: BOARD_LEVELS,
   BOARD_MULTS: BOARD_MULTS,
+  clampMaxCards: clampMaxCards,
+  handsCardsFor: handsCardsFor,
   handMeta: handMeta,
   createHands: createHands,
   isFilled: isFilled,
