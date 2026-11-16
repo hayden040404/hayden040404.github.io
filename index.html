@@ -533,13 +533,31 @@
       font-variant-numeric: tabular-nums;
     }
     .pad-grid button:active, .pad-grid button.on { background: var(--gold); color: var(--navy); }
-    .past-item {
-      display: block;
-      width: 100%;
-      text-align: left;
-      padding: 14px 0;
+    .past-row {
+      display: flex;
+      align-items: stretch;
+      gap: 4px;
       border-bottom: 1px solid var(--line);
     }
+    .past-item {
+      display: block;
+      flex: 1;
+      min-width: 0;
+      text-align: left;
+      padding: 14px 0;
+    }
+    .trash-btn {
+      width: 48px;
+      flex: none;
+      display: grid;
+      place-items: center;
+      color: #ff8a94;
+      border-radius: 12px;
+      align-self: center;
+      height: 48px;
+    }
+    .trash-btn:active { background: rgba(244, 91, 105, 0.16); }
+    .trash-btn svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
     .past-item .when { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
     .past-item .line { display: flex; justify-content: space-between; gap: 8px; font-size: 16px; }
     .past-item .line b { font-variant-numeric: tabular-nums; }
@@ -896,6 +914,39 @@
       persist();
       render();
     }
+    function askDeleteGame(id) {
+      state.sheet = {
+        type: 'confirm',
+        title: 'Delete this game?',
+        message: 'This can\u2019t be undone.',
+        confirm: 'Delete',
+        action: 'confirm-delete',
+        deleteId: id
+      };
+      render();
+    }
+    function deletePast(id) {
+      if (!id) return;
+      state.past = state.past.filter(function (p) { return p.id !== id; });
+      savePast();
+      var deletedActive = state.game && state.game.id === id;
+      if (deletedActive) {
+        var g = state.game;
+        state.game = createGame({
+          teamA: g.teamA.name, a1: g.teamA.p1, a2: g.teamA.p2,
+          teamB: g.teamB.name, b1: g.teamB.p1, b2: g.teamB.p2,
+          firstDealer: g.firstDealer
+        });
+        state.undoStack = [];
+        state.editingIndex = null;
+        state.sheet = null;
+        persist();
+        render();
+        return;
+      }
+      state.sheet = { type: 'past' };
+      render();
+    }
     function winnerLabel(leader, game) {
       if (leader === 'tie') return 'Tied';
       return (leader === 'A' ? game.teamA.name : game.teamB.name) + ' wins';
@@ -1115,12 +1166,20 @@
         inner = '<h2>Past games</h2>';
         if (!state.past.length) inner += '<div class="empty">No past games yet. Finish or start a new game and the current one will be saved here.</div>';
         else {
-          state.past.forEach(function (p) {
+          var list = state.past.slice().sort(function (a, b) {
+            if (!!a.complete === !!b.complete) return 0;
+            return a.complete ? 1 : -1;
+          });
+          list.forEach(function (p) {
+            inner += '<div class="past-row">';
             inner += '<button class="past-item" type="button" data-act="view-past" data-id="' + esc(p.id) + '">';
             inner += '<div class="when">' + esc(fmtDate(p.endedAt || p.startedAt)) + (p.complete ? '' : ' \u00b7 in progress') + '</div>';
             inner += '<div class="line"><span>' + esc(p.teamA.name) + '</span><b>' + p.aTotal + '</b></div>';
             inner += '<div class="line"><span>' + esc(p.teamB.name) + '</span><b>' + p.bTotal + '</b></div>';
             inner += '<div class="won">' + esc(winnerLabel(p.winner, p)) + '</div></button>';
+            inner += '<button class="trash-btn" type="button" data-act="ask-delete" data-id="' + esc(p.id) + '" aria-label="Delete this game">';
+            inner += '<svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>';
+            inner += '</button></div>';
           });
         }
         inner += '<button class="secondary" type="button" data-act="close-sheet">Close</button>';
@@ -1133,11 +1192,12 @@
           inner += '<p style="margin-bottom:4px;"><b>' + esc(p.teamA.name) + '</b> ' + p.aTotal + ' \u00b7 ' + p.aBags + '/10 bags</p>';
           inner += '<p style="margin-bottom:14px;"><b>' + esc(p.teamB.name) + '</b> ' + p.bTotal + ' \u00b7 ' + p.bBags + '/10 bags</p>';
           inner += '<button class="primary" type="button" data-act="reopen" data-id="' + esc(p.id) + '">Reopen this game</button>';
+          inner += '<button class="danger" type="button" data-act="ask-delete" data-id="' + esc(p.id) + '">Delete this game</button>';
           inner += '<button class="secondary" type="button" data-act="open-past">Back to list</button>';
         }
       } else if (sh.type === 'confirm') {
         inner = '<h2>' + esc(sh.title) + '</h2><p style="margin-bottom:12px;color:var(--muted)">' + esc(sh.message) + '</p>';
-        inner += '<button class="danger" type="button" data-act="' + esc(sh.action) + '">' + esc(sh.confirm) + '</button>';
+        inner += '<button class="danger" type="button" data-act="' + esc(sh.action) + '"' + (sh.deleteId ? ' data-id="' + esc(sh.deleteId) + '"' : '') + '>' + esc(sh.confirm) + '</button>';
         inner += '<button class="secondary" type="button" data-act="close-sheet">Cancel</button>';
       } else if (sh.type === 'pad') {
         var hand = state.game.hands[sh.index];
@@ -1212,6 +1272,8 @@
       else if (act === 'open-past') { state.sheet = { type: 'past' }; render(); }
       else if (act === 'view-past') { state.sheet = { type: 'pastView', id: t.getAttribute('data-id') }; render(); }
       else if (act === 'reopen') reopenPast(t.getAttribute('data-id'));
+      else if (act === 'ask-delete') askDeleteGame(t.getAttribute('data-id'));
+      else if (act === 'confirm-delete') deletePast(t.getAttribute('data-id') || (state.sheet && state.sheet.deleteId));
       else if (act === 'open-newgame') {
         var msg = recordedCount()
           ? 'The current game will be saved to Past Games, then a new scorecard will start with the same teams.'
