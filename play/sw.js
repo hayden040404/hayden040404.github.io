@@ -5,12 +5,13 @@
  */
 'use strict';
 
-const CACHE_NAME = 'backalley-play-v4';
+const CACHE_NAME = 'backalley-play-v5';
 const ASSETS = [
   './',
   './index.html',
   './engine.js',
   './ai.js',
+  './saves.js',
   './manifest.webmanifest',
   '../score.js'
 ];
