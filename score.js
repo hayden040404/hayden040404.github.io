@@ -21,6 +21,20 @@ const BOARD_LEVELS = Object.freeze([
 
 const BOARD_MULTS = Object.freeze([0, 2, 4, 6, 8]);
 
+/**
+ * Rainbow contracts, keyed by card count.
+ * Rainbow (4-card hand): one of each suit. Double Rainbow (8-card hand): exactly two of each suit.
+ * A joker counts as the trump suit. Required tricks are worth 20 each, every trick after that 10.
+ */
+const RAINBOWS = Object.freeze({
+  4: Object.freeze({ cards: 4, need: 1, key: 'rainbow', short: 'Rainbow', badge: 'RAINBOW' }),
+  8: Object.freeze({ cards: 8, need: 2, key: 'double-rainbow', short: 'Double Rainbow', badge: 'DOUBLE RAINBOW' })
+});
+
+function rainbowFor(cards) {
+  return RAINBOWS[Number(cards)] || null;
+}
+
 function clampMaxCards(n) {
   if (n == null || n === '') return 13;
   n = Number(n);
@@ -73,7 +87,9 @@ function createHands(maxCards) {
       aBoston: false,
       bBoston: false,
       aBostonMade: null,
-      bBostonMade: null
+      bBostonMade: null,
+      aRainbow: false,
+      bRainbow: false
     };
   });
 }
@@ -93,6 +109,8 @@ function boardBadge(mult) {
 }
 
 function contractBadge(hand, side) {
+  const rb = hand[side + 'Rainbow'] ? rainbowFor(hand.cards) : null;
+  if (rb) return rb.badge;
   if (hand[side + 'Boston']) return 'BOSTON';
   return boardBadge(hand[side + 'Board']);
 }
@@ -160,6 +178,28 @@ function scoreTeamHand(opts) {
   const board = normalizeBoard(opts.board);
   const boston = !!opts.boston && cards >= 6;
   const bostonMade = opts.bostonMade === true;
+  const rainbow = opts.rainbow ? rainbowFor(cards) : null;
+
+  if (rainbow) {
+    // Rainbow replaces the team's bid with a fixed bid of 1 (Double Rainbow: 2).
+    // Made (took >= need): +20 per required trick, +10 per trick after that. No bags.
+    // Failed (took < need): -20 per required trick (-20 / -40). No bags.
+    const need = rainbow.need;
+    const made = took >= need;
+    const pts = made ? 20 * need + 10 * (took - need) : -20 * need;
+    return {
+      pts: pts,
+      bagsAfter: bagsBefore,
+      bagsThisHand: 0,
+      penalty: false,
+      penaltyCount: 0,
+      made: made,
+      contract: rainbow.key,
+      board: 0,
+      bostonMade: null,
+      badge: rainbow.badge
+    };
+  }
 
   if (board) {
     const made = took >= cards;
@@ -222,7 +262,8 @@ function teamOpts(hand, side, bagsBefore) {
     cards: hand.cards,
     board: hand[side + 'Board'],
     boston: hand[side + 'Boston'],
-    bostonMade: hand[side + 'BostonMade']
+    bostonMade: hand[side + 'BostonMade'],
+    rainbow: hand[side + 'Rainbow']
   };
 }
 
@@ -276,6 +317,14 @@ function validateContracts(hand) {
     const took = isFilled(hand[side + 'Took']) ? Number(hand[side + 'Took']) : null;
     const bid = isFilled(hand[side + 'Bid']) ? Number(hand[side + 'Bid']) : null;
     if (board && boston) warnings.push(team + ' can’t bid Board and Boston on the same hand.');
+    if (hand[side + 'Rainbow']) {
+      const rb = rainbowFor(cards);
+      if (!rb) warnings.push(team + ' can only call Rainbow on a 4-card hand or Double Rainbow on an 8-card hand.');
+      else {
+        if (board || boston) warnings.push(team + ' can’t combine ' + rb.short + ' with Board or Boston.');
+        if (bid !== null && bid !== rb.need) warnings.push(team + ' called ' + rb.short + ', so the bid should be ' + rb.need + '.');
+      }
+    }
     if (boston && cards < 6) warnings.push(team + ' can’t bid Boston on a hand with fewer than 6 cards.');
     if (boston && !bostonAnswered(hand, side)) warnings.push('Say whether ' + team + ' took the first 6 tricks.');
     if (boston && hand[side + 'BostonMade'] === true && took !== null && took < 6) {
@@ -358,6 +407,8 @@ const api = {
   SUITS: SUITS,
   BOARD_LEVELS: BOARD_LEVELS,
   BOARD_MULTS: BOARD_MULTS,
+  RAINBOWS: RAINBOWS,
+  rainbowFor: rainbowFor,
   clampMaxCards: clampMaxCards,
   handsCardsFor: handsCardsFor,
   handMeta: handMeta,

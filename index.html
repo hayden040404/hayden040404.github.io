@@ -759,6 +759,10 @@
         if (field === 'Bid' && hand[side + 'Board'] && v !== cards) {
           hand[side + 'Board'] = 0;
         }
+        var rbSet = BA.rainbowFor(cards);
+        if (field === 'Bid' && hand[side + 'Rainbow'] && (!rbSet || v !== rbSet.need)) {
+          hand[side + 'Rainbow'] = false;
+        }
         if (field === 'Took') {
           var other = side === 'a' ? 'b' : 'a';
           hand[other + 'Took'] = cards - v;
@@ -790,6 +794,7 @@
       if (next) {
         hand[side + 'Boston'] = false;
         hand[side + 'BostonMade'] = null;
+        hand[side + 'Rainbow'] = false;
         hand[side + 'Bid'] = hand.cards;
       }
       persist();
@@ -803,11 +808,28 @@
       hand[side + 'Boston'] = on;
       if (on) {
         hand[side + 'Board'] = 0;
+        hand[side + 'Rainbow'] = false;
         if (!BA.isFilled(hand[side + 'Bid']) || Number(hand[side + 'Bid']) < 6) {
           hand[side + 'Bid'] = 6;
         }
       } else {
         hand[side + 'BostonMade'] = null;
+      }
+      persist();
+      render();
+    }
+    function setRainbow(index, side) {
+      var hand = state.game.hands[index];
+      var rb = BA.rainbowFor(hand.cards);
+      if (!rb) return;
+      pushUndo();
+      var on = !hand[side + 'Rainbow'];
+      hand[side + 'Rainbow'] = on;
+      if (on) {
+        hand[side + 'Board'] = 0;
+        hand[side + 'Boston'] = false;
+        hand[side + 'BostonMade'] = null;
+        hand[side + 'Bid'] = rb.need;
       }
       persist();
       render();
@@ -1029,6 +1051,10 @@
       html += '</div>';
       var canBoston = hand.cards >= 6;
       html += '<div class="chips"><button class="chip' + (hand[side + 'Boston'] ? ' on' : '') + '" type="button" data-act="set-boston" data-index="' + index + '" data-side="' + side + '"' + (canBoston ? '' : ' disabled') + '>Boston' + (canBoston ? '' : '<span class="sub">6+ cards</span>') + '</button></div>';
+      var rb = BA.rainbowFor(hand.cards);
+      if (rb) {
+        html += '<div class="chips"><button class="chip' + (hand[side + 'Rainbow'] ? ' on' : '') + '" type="button" data-act="set-rainbow" data-index="' + index + '" data-side="' + side + '">\ud83c\udf08 ' + esc(rb.short) + '<span class="sub">' + rb.need + ' @ 20</span></button></div>';
+      }
       return html;
     }
     function renderHandEditor(index, score) {
@@ -1069,7 +1095,8 @@
           cards: hand.cards,
           board: hand[side + 'Board'],
           boston: hand[side + 'Boston'],
-          bostonMade: hand[side + 'BostonMade']
+          bostonMade: hand[side + 'BostonMade'],
+          rainbow: hand[side + 'Rainbow']
         });
       }
       var prevALive = liveScore('a', prevA);
@@ -1092,7 +1119,7 @@
         var team = side === 'a' ? state.game.teamA : state.game.teamB;
         var live = side === 'a' ? prevALive : prevBLive;
         html += '<div class="team-col"><div class="col-name">' + esc(team.name) + '</div>';
-        html += '<div class="stat"><div class="slabel">Bid</div>' + stepper(index, side, 'Bid', hand[side + 'Bid'], hand.cards, !!hand[side + 'Board']) + contractPicker(index, side, hand) + '</div>';
+        html += '<div class="stat"><div class="slabel">Bid</div>' + stepper(index, side, 'Bid', hand[side + 'Bid'], hand.cards, !!hand[side + 'Board'] || !!hand[side + 'Rainbow']) + contractPicker(index, side, hand) + '</div>';
         if (hand[side + 'Boston']) {
           html += '<div class="stat"><div class="slabel">Took first 6?</div><div class="yn">';
           html += '<button type="button" class="' + (hand[side + 'BostonMade'] === true ? 'on-yes' : '') + '" data-act="set-boston-made" data-index="' + index + '" data-side="' + side + '" data-value="true">Yes</button>';
@@ -1187,6 +1214,8 @@
           '<li><b>Get set:</b> \u221210 per trick bid when you take fewer than you bid.</li>' +
           '<li><b>Board:</b> bid to take every trick. Those tricks are worth a multiplier, win or set \u2014 Board x2 (20 each), Double Board x4 (40), Triple Board x6 (60), Quadruple Board x8 (80). No bags.</li>' +
           '<li><b>Boston</b> (hands of 6 or more cards) is a bid of <b>6 or more</b>. You must take the <b>first 6</b> tricks and at least as many as you bid. Make it: +120 for the first 6, +10 for each trick bid over 6, and +1 for every trick over the bid (a bag). Miss the first 6, or take fewer than you bid: \u221220 per trick bid. Tricks over the bid are still sandbags (they count toward the 10-bag \u2212100 penalty; only a made Boston gets the +1 bag points).</li>' +
+          '<li><b>\ud83c\udf08 Rainbow</b> (4-card hands only): you\u2019re dealt <b>one of each suit</b> (a joker counts as that hand\u2019s trump suit). Calling it replaces your team\u2019s bid with a bid of <b>1</b> \u2014 you must take at least 1 trick. Make it: <b>+20</b> for the first trick and <b>+10</b> for each trick after that. Take none: <b>\u221220</b>. No bags either way.</li>' +
+          '<li><b>\ud83c\udf08 Double Rainbow</b> (8-card hands only): you\u2019re dealt <b>exactly two of each suit</b> (a joker counts as that hand\u2019s trump suit). Calling it replaces your team\u2019s bid with a bid of <b>2</b> \u2014 you must take at least 2 tricks. Make it: <b>+40</b> for those two (20 each) and <b>+10</b> for each trick after that. Take fewer than 2: <b>\u221240</b>. No bags either way.</li>' +
           '<li>Every time a team\u2019s bags reach 10: <b>\u2212100</b> and the bag count drops by 10.</li>' +
           '<li>After the last hand, the team with the most points wins.</li>' +
           '</ul><button class="primary" type="button" data-act="close-sheet">Got it</button>';
@@ -1335,6 +1364,7 @@
       else if (act === 'set-trump') { setTrump(index, t.getAttribute('data-suit')); }
       else if (act === 'set-board') { setBoard(index, t.getAttribute('data-side'), Number(t.getAttribute('data-mult'))); }
       else if (act === 'set-boston') { setBoston(index, t.getAttribute('data-side')); }
+      else if (act === 'set-rainbow') { setRainbow(index, t.getAttribute('data-side')); }
       else if (act === 'set-boston-made') { setBostonMade(index, t.getAttribute('data-side'), t.getAttribute('data-value') === 'true'); }
       else if (act === 'step') {
         stepVal(index, t.getAttribute('data-side'), t.getAttribute('data-field'), Number(t.getAttribute('data-delta')));
@@ -1391,6 +1421,8 @@
           bBoston: !!h.bBoston,
           aBostonMade: h.aBostonMade === true ? true : (h.aBostonMade === false ? false : null),
           bBostonMade: h.bBostonMade === true ? true : (h.bBostonMade === false ? false : null),
+          aRainbow: !!h.aRainbow && !!BA.rainbowFor(list[i]),
+          bRainbow: !!h.bRainbow && !!BA.rainbowFor(list[i]),
           recorded: !!h.recorded || (BA.isHandComplete(h) && h.recorded !== false)
         };
       });
