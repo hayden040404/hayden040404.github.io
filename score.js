@@ -182,18 +182,28 @@ function scoreTeamHand(opts) {
 
   if (rainbow) {
     // Rainbow sets a minimum team bid of 1 (Double Rainbow: 2); the team may bid more.
-    // Made (took >= bid): +20 per required trick, +10 per trick taken after that. No bags.
-    // Set (took < bid): minus what the bid would have earned: -(20*need + 10*(bid-need)). No bags.
+    // Made (took >= bid): +20 per required trick, +10 per other bid trick,
+    //   +1 per trick over the bid (a bag, with the normal 10-bag -100 penalty).
+    // Set (took < bid): minus what the bid would have earned: -(20*need + 10*(bid-need)). Bags unchanged.
     const need = rainbow.need;
     const rbBid = Math.max(need, Number.isFinite(bid) ? bid : need);
     const made = took >= rbBid;
-    const pts = made ? 20 * need + 10 * (took - need) : -(20 * need + 10 * (rbBid - need));
+    const bidValue = 20 * need + 10 * (rbBid - need);
+    const bagsThisHand = made ? took - rbBid : 0;
+    let pts = made ? bidValue + bagsThisHand : -bidValue;
+    let bags = bagsBefore + bagsThisHand;
+    let penaltyCount = 0;
+    while (bags >= 10) {
+      pts -= 100;
+      bags -= 10;
+      penaltyCount += 1;
+    }
     return {
       pts: pts,
-      bagsAfter: bagsBefore,
-      bagsThisHand: 0,
-      penalty: false,
-      penaltyCount: 0,
+      bagsAfter: bags,
+      bagsThisHand: bagsThisHand,
+      penalty: penaltyCount > 0,
+      penaltyCount: penaltyCount,
       made: made,
       contract: rainbow.key,
       board: 0,
