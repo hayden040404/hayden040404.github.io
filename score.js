@@ -413,7 +413,10 @@ function firstIncompleteIndex(hands) {
   return -1;
 }
 
+const APP_VERSION = 'v12';
+
 const api = {
+  APP_VERSION: APP_VERSION,
   HANDS_CARDS: HANDS_CARDS,
   SUITS: SUITS,
   BOARD_LEVELS: BOARD_LEVELS,

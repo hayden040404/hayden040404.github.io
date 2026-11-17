@@ -1,19 +1,29 @@
-/* Back Alley Scorecard — cache-first, relative URLs, text assets only. */
+/* Back Alley Scorecard service worker.
+ * Network-first for app files so phones pick up new versions right away;
+ * the cache is only an offline fallback. Install bypasses the HTTP cache
+ * (cache: 'reload') so a new cache never gets filled with stale files.
+ */
 'use strict';
 
-const CACHE_NAME = 'backalley-v11';
+const CACHE_NAME = 'backalley-v12';
 const ASSETS = [
   './',
   './index.html',
   './score.js',
-  './manifest.webmanifest',
-  './sw.js'
+  './manifest.webmanifest'
 ];
 
 self.addEventListener('install', function (event) {
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then(function (cache) { return cache.addAll(ASSETS); })
+      .then(function (cache) {
+        return Promise.all(ASSETS.map(function (url) {
+          return fetch(new Request(url, { cache: 'reload' })).then(function (res) {
+            if (!res.ok) throw new Error('Failed to fetch ' + url);
+            return cache.put(url, res);
+          });
+        }));
+      })
       .then(function () { return self.skipWaiting(); })
   );
 });
@@ -29,17 +39,25 @@ self.addEventListener('activate', function (event) {
 });
 
 self.addEventListener('fetch', function (event) {
-  if (event.request.method !== 'GET') return;
+  const req = event.request;
+  if (req.method !== 'GET') return;
+  const url = new URL(req.url);
+  if (url.origin !== self.location.origin) return;
+  if (url.pathname.endsWith('/sw.js')) return;
+
+  // Network first (revalidating past the HTTP cache), fall back to the cache offline.
   event.respondWith(
-    caches.match(event.request).then(function (cached) {
-      if (cached) return cached;
-      return fetch(event.request).then(function (response) {
-        return response;
-      }).catch(function () {
-        if (event.request.mode === 'navigate') {
-          return caches.match('./index.html');
-        }
-        return caches.match('./');
+    fetch(req, { cache: 'no-cache' }).then(function (res) {
+      if (res && res.ok && res.type === 'basic' && url.search === '') {
+        const copy = res.clone();
+        caches.open(CACHE_NAME).then(function (cache) { cache.put(req, copy); });
+      }
+      return res;
+    }).catch(function () {
+      return caches.match(req, { ignoreSearch: true }).then(function (cached) {
+        if (cached) return cached;
+        if (req.mode === 'navigate') return caches.match('./index.html').then(function (r) { return r || caches.match('./'); });
+        return Response.error();
       });
     })
   );
