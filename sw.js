@@ -1,7 +1,7 @@
 /* Back Alley Scorecard — cache-first, relative URLs, text assets only. */
 'use strict';
 
-const CACHE_NAME = 'backalley-v9';
+const CACHE_NAME = 'backalley-v10';
 const ASSETS = [
   './',
   './index.html',

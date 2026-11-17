@@ -181,12 +181,13 @@ function scoreTeamHand(opts) {
   const rainbow = opts.rainbow ? rainbowFor(cards) : null;
 
   if (rainbow) {
-    // Rainbow replaces the team's bid with a fixed bid of 1 (Double Rainbow: 2).
-    // Made (took >= need): +20 per required trick, +10 per trick after that. No bags.
-    // Failed (took < need): -20 per required trick (-20 / -40). No bags.
+    // Rainbow sets a minimum team bid of 1 (Double Rainbow: 2); the team may bid more.
+    // Made (took >= bid): +20 per required trick, +10 per trick taken after that. No bags.
+    // Set (took < bid): minus what the bid would have earned: -(20*need + 10*(bid-need)). No bags.
     const need = rainbow.need;
-    const made = took >= need;
-    const pts = made ? 20 * need + 10 * (took - need) : -20 * need;
+    const rbBid = Math.max(need, Number.isFinite(bid) ? bid : need);
+    const made = took >= rbBid;
+    const pts = made ? 20 * need + 10 * (took - need) : -(20 * need + 10 * (rbBid - need));
     return {
       pts: pts,
       bagsAfter: bagsBefore,
@@ -322,7 +323,7 @@ function validateContracts(hand) {
       if (!rb) warnings.push(team + ' can only call Rainbow on a 4-card hand or Double Rainbow on an 8-card hand.');
       else {
         if (board || boston) warnings.push(team + ' can’t combine ' + rb.short + ' with Board or Boston.');
-        if (bid !== null && bid !== rb.need) warnings.push(team + ' called ' + rb.short + ', so the bid should be ' + rb.need + '.');
+        if (bid !== null && bid < rb.need) warnings.push(team + ' called ' + rb.short + ', so the bid has to be at least ' + rb.need + '.');
       }
     }
     if (boston && cards < 6) warnings.push(team + ' can’t bid Boston on a hand with fewer than 6 cards.');
