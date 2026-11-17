@@ -226,7 +226,7 @@
   <script>
   (function () {
     'use strict';
-    var PLAY_VERSION = 'Play v2';
+    var PLAY_VERSION = 'Play v3';
     var STORE_KEY = 'backalley-play-v1';
     var E = window.BAEngine;
     var AI = window.BAAI;
@@ -235,6 +235,7 @@
     var SUIT_NAME = { S: 'Spades', H: 'Hearts', D: 'Diamonds', C: 'Clubs' };
     var RANK = { 11: 'J', 12: 'Q', 13: 'K', 14: 'A' };
     var SEAT_POS = ['s', 'w', 'n', 'e'];
+    var BOARD_NAME = { 2: 'Board', 4: 'Double Board', 6: 'Triple Board', 8: 'Quadruple Board' };
 
     var prefs = { name: 'You', speed: 'normal', lastMax: 13, tipDismissed: false };
     var state = null;
@@ -276,6 +277,7 @@
     // ---------- helpers ----------
     function names() { return state.names; }
     function seatName(s) { return s === 0 ? prefs.name || 'You' : names()[s]; }
+    function verb(seat, base) { return seat === 0 && seatName(0) === 'You' ? base : base + 's'; }
     function teamLabel(t) { return t === 'A' ? 'Your team' : 'Them'; }
     function speed(ms) { return prefs.speed === 'fast' ? Math.round(ms * 0.45) : ms; }
     function handSortOrder(trump) {
@@ -301,15 +303,15 @@
     }
     function bidText(b, r) {
       if (!b) return '';
-      if (b.kind === 'board') return 'Board x' + b.level;
+      if (b.kind === 'board') return b.superseded ? 'Out-boarded' : BOARD_NAME[b.level].replace('Quadruple', 'Quad').replace(' Board', '') + ' x' + b.level;
       if (b.kind === 'boston') return 'Boston ' + b.value;
-      if (b.kind === 'partner') return 'with partner';
+      if (b.kind === 'partner') return r && r.team[E.teamOf(r.bidOrder.filter(function (s) { return r.bids[s] === b; })[0] || 0)].boston ? 'with partner' : 'pass';
       return (b.rainbow ? '\ud83c\udf08 ' : '') + 'Bid ' + b.value;
     }
     function teamTook(r, t) { return t === 'A' ? r.took[0] + r.took[2] : r.took[1] + r.took[3]; }
     function contractLabel(r, t) {
       var tc = r.team[t];
-      if (tc.board) return 'Board x' + tc.board;
+      if (tc.board) return BOARD_NAME[tc.board].replace('Quadruple', 'Quad').replace(' Board', '') + ' x' + tc.board;
       if (tc.boston) return 'Boston';
       if (tc.rainbow) { var rb = BA.rainbowFor(r.cards); return rb ? rb.short : ''; }
       return '';
@@ -336,7 +338,12 @@
     function describe(a, before) {
       var who = seatName(a.seat);
       if (a.type === 'bid') {
-        if (a.board) return who + ' boarded (x' + a.board + ')!';
+        if (a.board) {
+          if (a.board === 2) return who + ' boarded!';
+          var prevHolder = E.boardHolder(before.round);
+          return who + (prevHolder && prevHolder !== E.teamOf(a.seat) ? ' took the Board with a ' : ' raised to ') + BOARD_NAME[a.board] + ' (x' + a.board + ')!';
+        }
+        if (E.boardHolder(before.round) === E.teamOf(a.seat)) return who + ' passed';
         if (a.boston) return who + ' called Boston for ' + a.value + '!';
         if (a.rainbow) { var rb = BA.rainbowFor(before.round.cards); return who + ' called ' + (rb ? rb.short : 'Rainbow') + ' \ud83c\udf08 and bid ' + a.value; }
         return who + ' bid ' + a.value;
@@ -354,7 +361,7 @@
         if (state.phase !== 'gameOver') ui.toast = seatName(state.round.dealer) + ' dealt. ' + SUIT_NAME[state.round.trump] + ' are trump.' + (state.round.trumpFrom === 'dealer' ? ' (Only jokers were left, so the dealer\u2019s last card set trump.)' : '');
       }
       if (a.type === 'bid' && state.phase === 'playing') {
-        ui.toast = describe(a, before) + '. ' + seatName(state.round.leader) + (state.round.leader === 0 ? ' lead.' : ' leads.');
+        ui.toast = describe(a, before) + '. ' + seatName(state.round.leader) + ' ' + verb(state.round.leader, 'lead') + '.';
       }
       save();
       if (a.type === 'play') {
@@ -363,7 +370,7 @@
         if (br.trick.length === 3) {
           var t = state.round.tricks[state.round.tricks.length - 1];
           ui.hold = { cards: t.cards, winner: t.winner, sweep: false };
-          ui.toast = seatName(t.winner) + (t.winner === 0 ? ' win' : ' wins') + ' the trick';
+          ui.toast = seatName(t.winner) + ' ' + verb(t.winner, 'win') + ' the trick';
           render();
           ui.timer = setTimeout(function () {
             ui.hold.sweep = true; ui.enterKey = null; render();
@@ -468,11 +475,18 @@
         html += '<div class="rainbow-offer"><div class="txt">\ud83c\udf08 <b>' + esc(o.rainbow.short) + '!</b> ' + (o.rainbow.need === 1 ? 'One of each suit.' : 'Exactly two of each suit.') + ' Team bids at least ' + o.rainbow.need + '; first ' + (o.rainbow.need === 1 ? 'trick is worth 20' : 'two tricks are worth 20 each') + '.</div>' +
           '<button class="tog' + (ui.bid.rainbow ? ' on' : '') + '" data-act="bid-rainbow">' + (ui.bid.rainbow ? 'Calling' : 'Call it') + '</button></div>';
       }
+      var hintText0 = hint.board ? BOARD_NAME[hint.board] + ' x' + hint.board : hint.boston ? 'Boston ' + hint.value : (o.passOnly ? 'Pass' : String(hint.value));
+      if (o.passOnly) {
+        html += '<div class="ctx">' + esc(seatName(2)) + ' has the ' + esc(BOARD_NAME[r.team.A.board]) + ' (x' + r.team.A.board + '). You can raise it one level or pass.</div><div class="board-grid">';
+        if (o.canBoard) html += '<button data-act="bid-board" data-level="' + o.boardNext + '">' + BOARD_NAME[o.boardNext] + ' x' + o.boardNext + '<span>' + (10 * o.boardNext) + ' a trick \u00b7 must take all ' + r.cards + '</span></button>';
+        html += '<button data-act="bid" data-value="0">Pass<span>Keep it at x' + r.team.A.board + '</span></button></div>';
+        return html + '<div class="hintline">Computer would: <b>' + esc(hintText0) + '</b></div></div>';
+      }
       var rainbowOn = o.canRainbow && ui.bid.rainbow;
       var mode = ui.bid.mode;
       if (rainbowOn && mode !== 'num') mode = 'num';
       html += '<div class="tabs"><button class="tab' + (mode === 'num' ? ' on' : '') + '" data-act="bid-mode" data-mode="num">Bid</button>';
-      html += '<button class="tab' + (mode === 'board' ? ' on' : '') + '" data-act="bid-mode" data-mode="board"' + (o.canBoard && !rainbowOn ? '' : ' disabled style="opacity:.35"') + '>Board</button>';
+      html += '<button class="tab' + (mode === 'board' ? ' on' : '') + '" data-act="bid-mode" data-mode="board"' + (o.canBoard && !rainbowOn ? '' : ' disabled style="opacity:.35"') + '>' + (o.boardRaise ? esc(BOARD_NAME[o.boardNext].split(' ')[0]) : 'Board') + '</button>';
       html += '<button class="tab' + (mode === 'boston' ? ' on' : '') + '" data-act="bid-mode" data-mode="boston"' + (o.canBoston && !rainbowOn ? '' : ' disabled style="opacity:.35"') + '>Boston</button></div>';
       if (mode === 'num') {
         var min = rainbowOn ? o.rainbowMin : o.min;
@@ -481,17 +495,15 @@
         html += '</div>';
         if (min > 0) html += '<div class="hintline">Your team must bid at least ' + (rainbowOn ? o.rainbow.need : min) + ' for the ' + esc(o.rainbow ? o.rainbow.short : 'rainbow') + '.</div>';
       } else if (mode === 'board') {
-        html += '<div class="board-grid">';
-        [2, 4, 6, 8].forEach(function (m, i) {
-          html += '<button data-act="bid-board" data-level="' + m + '">' + ['Board', 'Double', 'Triple', 'Quad'][i] + ' x' + m + '<span>' + (10 * m) + ' a trick \u00b7 must take all ' + r.cards + '</span></button>';
-        });
-        html += '</div><div class="hintline">Your team bids every trick. Your partner won\u2019t bid. No bags.</div>';
+        var holder = o.boardHolder;
+        html += '<div class="board-grid" style="grid-template-columns:1fr"><button data-act="bid-board" data-level="' + o.boardNext + '">' + BOARD_NAME[o.boardNext] + ' x' + o.boardNext + '<span>' + (10 * o.boardNext) + ' a trick \u00b7 your team must take all ' + r.cards + '</span></button></div>';
+        html += '<div class="hintline">' + (holder && holder !== 'A' ? 'Takes the Board away from them \u2014 their Board is cancelled and they just try to set you.' : 'Your team bids every trick. Your partner can Double it. No bags.') + ' Each later bidder can raise it one level, up to Quad x8.</div>';
       } else {
         html += '<div class="pad-grid">';
         for (var b = 6; b <= r.cards; b++) html += '<button data-act="bid-boston" data-value="' + b + '">' + b + '</button>';
         html += '</div><div class="hintline">Team bid of 6+ and you must take the first 6 tricks. Your partner won\u2019t bid.</div>';
       }
-      var hintText = hint.board ? 'Board x' + hint.board : hint.boston ? 'Boston ' + hint.value : String(hint.value);
+      var hintText = hintText0;
       html += '<div class="hintline">Computer would bid: <b>' + esc(hintText) + '</b></div></div>';
       return html;
     }
@@ -552,7 +564,7 @@
 
     function headerHTML(sc) {
       var sub = 'Solo vs computer';
-      if (state && state.phase !== 'gameOver') sub = roundTitle() + ' \u00b7 ' + roundCards() + ' \u00b7 ' + seatName(state.round.dealer) + (state.round.dealer === 0 ? ' deal' : ' deals');
+      if (state && state.phase !== 'gameOver') sub = roundTitle() + ' \u00b7 ' + roundCards() + ' \u00b7 ' + seatName(state.round.dealer) + ' ' + verb(state.round.dealer, 'deal');
       else if (state) sub = 'Final';
       var html = '<header class="chrome"><div class="brand-row"><div class="brand"><div class="logo">BA</div><div><h1>Back Alley</h1><div class="sub">' + esc(sub) + '</div></div></div>';
       html += '<div class="top-actions">';
@@ -574,7 +586,7 @@
         '<li><b>Big Joker</b> and <b>Little Joker</b> are the top two trumps.</li>' +
         '<li>Partners\u2019 bids add into one team bid. <b>Whoever bid highest leads.</b></li>' +
         '<li><b>Make it:</b> +10 per trick bid, +1 per extra trick (a bag). <b>Set:</b> \u221210 per trick bid.</li>' +
-        '<li><b>Board:</b> bid every trick at x2, x4, x6 or x8 (20/40/60/80 a trick), win or lose. No bags.</li>' +
+        '<li><b>Board:</b> bid every trick. Board x2 is 20 a trick, Double x4 is 40, Triple x6 is 60, Quadruple x8 is 80 \u2014 plus if you take them all, minus if you don\u2019t. No bags.</li>' +
         '<li><b>Boston</b> (6+ cards): team bid of 6 or more and you must take the <b>first 6</b> tricks. Make it: +120, +10 per trick bid over 6, +1 per extra. Miss: \u221220 per trick bid.</li>' +
         '<li><b>\ud83c\udf08 Rainbow</b> (4 cards, one of each suit) and <b>Double Rainbow</b> (8 cards, exactly two of each suit). A joker counts as the trump suit. Team bids at least 1 (Double: 2); the first trick is worth 20 (Double: first two, 20 each), other bid tricks 10, extras +1 and a bag. Set: minus what the bid was worth.</li>' +
         '<li>Every 10 bags: <b>\u2212100</b>.</li></ul>' +
@@ -586,7 +598,9 @@
         '<li><b>Big Joker led:</b> the leader\u2019s opponents must play their <b>highest</b> trump (a Little Joker counts as highest), and the leader\u2019s partner must play their <b>lowest</b> trump. <b>Little Joker led:</b> everyone plays their <b>lowest</b> trump. No trump? Play anything.</li>' +
         '<li><b>Trump must be broken</b>: you can\u2019t lead trump (or a joker) until someone has played trump on another suit, unless your hand is all trump.</li>' +
         '<li>If only the two jokers are left after the deal (13-card hand), the dealer\u2019s last card sets trump.</li>' +
-        '<li>Board and Boston are called during your bid and take the place of your partner\u2019s bid. Rainbow is offered automatically when you\u2019re dealt one.</li>' +
+        '<li><b>Board escalates:</b> nobody can open higher than Board x2. Once someone has Boarded, each later bidder (either team, even after someone in between bid normally) may raise it one level: Board \u2192 Double \u2192 Triple \u2192 Quadruple. If your partner holds the Board, your only choices are raise or pass.</li>' +
+        '<li><b>Out-boarded:</b> the latest raise owns the Board. If the other team raises your Board, your Board is cancelled; your team\u2019s bid becomes whatever numbers you bid (usually 0), so every trick you take is a bag, and your job is to set them.</li>' +
+        '<li>The first player on the team holding the Board leads. Boston is called during your bid and takes the place of your partner\u2019s bid. Rainbow is offered automatically when you\u2019re dealt one.</li>' +
         '<li>Bids can\u2019t add up to more tricks than there are cards for one team.</li></ul>' +
         '<div class="ver">' + PLAY_VERSION + ' \u00b7 scoring from scorecard ' + esc(BA.APP_VERSION) + '</div>' +
         '<button class="primary" data-act="close-sheet">Got it</button>';

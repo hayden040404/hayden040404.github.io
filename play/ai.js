@@ -93,7 +93,13 @@
     const hand = r.hands[seat];
     const est = estimateTricks(hand, r.trump, r.cards);
     const sure = sureTopTrumps(hand, r.trump);
-    if (o.canBoard && sure >= r.cards) return { type: 'bid', seat: seat, board: r.cards <= 2 ? 4 : 2 };
+    if (o.passOnly) {
+      // Partner has the Board: usually Double it (one level up) unless this hand is really weak.
+      const raise = o.canBoard && (sure >= 1 || r.cards <= 3 || est >= r.cards * 0.15);
+      return raise ? { type: 'bid', seat: seat, board: o.boardNext } : { type: 'bid', seat: seat, value: 0 };
+    }
+    // Open a Board, or take it from the other team, only when the hand can't lose a trick.
+    if (o.canBoard && sure >= r.cards) return { type: 'bid', seat: seat, board: o.boardNext };
     if (o.canBoston && r.cards >= 6) {
       const aces = SUITS.filter(function (s) { return s !== r.trump && hand.indexOf(s + '14') >= 0; }).length;
       if (est >= 7 && sure >= 4 && sure + aces >= 6) {

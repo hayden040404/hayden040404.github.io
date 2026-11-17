@@ -124,6 +124,7 @@
         A: { board: 0, boston: false, bostonBid: 0, rainbow: false, caller: null },
         B: { board: 0, boston: false, bostonBid: 0, rainbow: false, caller: null }
       },
+      boardChain: [],
       rainbowEligible: hands.map(function (h) { return rainbowEligible(h, trump, cards); }),
       turn: bidOrder[0],
       leader: null,
@@ -141,7 +142,24 @@
     if (t.board) return round.cards;
     if (t.boston) return t.bostonBid;
     const seats = team === 'A' ? [0, 2] : [1, 3];
-    return seats.reduce(function (sum, s) { return sum + (round.bids[s] && round.bids[s].value || 0); }, 0);
+    // Only numeric bids count; a Board that was out-boarded counts as 0.
+    return seats.reduce(function (sum, s) { const b = round.bids[s]; return sum + (b && b.kind === 'num' ? b.value : 0); }, 0);
+  }
+
+  /** Team currently holding the Board contract ('A', 'B' or null). */
+  function boardHolder(round) {
+    return round.team.A.board ? 'A' : round.team.B.board ? 'B' : null;
+  }
+
+  /**
+   * Board escalates one level per later bidder: Board x2 -> Double x4 -> Triple x6 -> Quad x8.
+   * Returns the next multiplier anyone may bid, or null once Quad is reached.
+   */
+  function nextBoardMult(round) {
+    const chain = round.boardChain || [];
+    if (!chain.length) return BOARD_MULTS[0];
+    const i = BOARD_MULTS.indexOf(chain[chain.length - 1].mult);
+    return i >= 0 && i < BOARD_MULTS.length - 1 ? BOARD_MULTS[i + 1] : null;
   }
 
   /** What a seat may bid right now. */
@@ -156,14 +174,21 @@
     const max = Math.max(0, r.cards - partnerNum);
     let min = 0;
     if (tc.rainbow && rb) min = Math.min(max, Math.max(0, rb.need - partnerNum));
+    const ownBoard = boardHolder(r) === team;
     const canRainbow = !!(rb && r.rainbowEligible[seat] && !tc.rainbow && !tc.board && !tc.boston);
+    const next = nextBoardMult(r);
+    const canBoard = !!next && !tc.rainbow && !tc.boston;
     return {
-      min: min,
-      max: max,
+      min: ownBoard ? 0 : min,
+      max: ownBoard ? 0 : max,
       cards: r.cards,
-      canBoard: !tc.rainbow,
-      boardLevels: BOARD_MULTS.slice(),
-      canBoston: r.cards >= 6 && !tc.rainbow,
+      // Partner already holds the Board: you may only raise it one level or pass (bid nothing).
+      passOnly: ownBoard,
+      canBoard: canBoard,
+      boardNext: canBoard ? next : null,
+      boardRaise: canBoard && next > BOARD_MULTS[0],
+      boardHolder: boardHolder(r),
+      canBoston: r.cards >= 6 && !tc.rainbow && !ownBoard,
       bostonMin: 6,
       bostonMax: r.cards,
       canRainbow: canRainbow,
@@ -183,10 +208,11 @@
     const o = bidOptions(state, a.seat);
     if (!o) return 'Not your turn to bid.';
     if (a.board) {
-      if (!o.canBoard) return 'Board can’t be combined with a rainbow.';
-      if (BOARD_MULTS.indexOf(a.board) < 0) return 'Unknown board level.';
+      if (!o.canBoard) return o.boardNext === null && !nextBoardMult(state.round) ? 'Board is already at Quadruple.' : 'Board can’t be combined with a Rainbow or Boston.';
+      if (a.board !== o.boardNext) return o.boardNext === 2 ? 'Board has to start at Board x2.' : 'Board can only go up one level, to x' + o.boardNext + '.';
       return null;
     }
+    if (o.passOnly) return a.value === 0 && !a.boston && !a.rainbow ? null : 'Your partner has the Board: raise it or pass.';
     if (!Number.isInteger(a.value)) return 'Bid must be a whole number.';
     if (a.boston) {
       if (!o.canBoston) return 'Boston needs 6 or more cards.';
@@ -206,9 +232,21 @@
     const r = state.round;
     const tc = r.team[teamOf(a.seat)];
     if (a.board) {
+      const team = teamOf(a.seat);
+      const other = team === 'A' ? 'B' : 'A';
+      if (!r.boardChain) r.boardChain = [];
+      if (r.team[other].board) {
+        // Out-boarded: the other team's Board is gone; their numeric bids (usually 0) stand.
+        r.team[other].board = 0;
+        r.bidOrder.forEach(function (s) { if (teamOf(s) === other && r.bids[s] && r.bids[s].kind === 'board') r.bids[s].superseded = true; });
+      }
+      r.bidOrder.forEach(function (s) { if (teamOf(s) === team && r.bids[s] && r.bids[s].kind === 'board') r.bids[s].superseded = false; });
+      r.boardChain.push({ seat: a.seat, mult: a.board });
       tc.board = a.board;
       tc.boston = false;
       r.bids[a.seat] = { kind: 'board', value: r.cards, level: a.board };
+    } else if (r.team[teamOf(a.seat)].board) {
+      r.bids[a.seat] = { kind: 'partner', value: 0 };
     } else if (a.boston) {
       tc.boston = true;
       tc.bostonBid = a.value;
@@ -226,7 +264,8 @@
     while (r.bidPos < 4) {
       const s = r.bidOrder[r.bidPos];
       const tc = r.team[teamOf(s)];
-      if (tc.board || tc.boston) {
+      // Partner of a Boston, or of a Board that can't go higher, has nothing to bid.
+      if (tc.boston || (tc.board && !nextBoardMult(r))) {
         r.bids[s] = { kind: 'partner', value: 0 };
         r.bidPos += 1;
         continue;
@@ -235,13 +274,19 @@
       return;
     }
     // Everyone has bid: the highest individual bid leads (ties go to whoever bid it first).
+    // With a Board on, the holding team's first Boarder leads.
     let best = -1;
     let leader = r.bidOrder[0];
-    r.bidOrder.forEach(function (s) {
-      const b = r.bids[s];
-      const v = b.kind === 'partner' ? -1 : b.value;
-      if (v > best) { best = v; leader = s; }
-    });
+    const holder = boardHolder(r);
+    if (holder) {
+      leader = r.boardChain.filter(function (b) { return teamOf(b.seat) === holder; })[0].seat;
+    } else {
+      r.bidOrder.forEach(function (s) {
+        const b = r.bids[s];
+        const v = b.kind === 'partner' || b.kind === 'board' ? -1 : b.value;
+        if (v > best) { best = v; leader = s; }
+      });
+    }
     r.leader = leader;
     r.turn = leader;
     state.phase = 'playing';
@@ -425,6 +470,8 @@
     newGame: newGame,
     rainbowEligible: rainbowEligible,
     teamBid: teamBid,
+    boardHolder: boardHolder,
+    nextBoardMult: nextBoardMult,
     bidOptions: bidOptions,
     legalCards: legalCards,
     jokerLeadForced: jokerLeadForced,
