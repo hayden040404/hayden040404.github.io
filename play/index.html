@@ -226,7 +226,7 @@
   <script>
   (function () {
     'use strict';
-    var PLAY_VERSION = 'Play v3';
+    var PLAY_VERSION = 'Play v4';
     var STORE_KEY = 'backalley-play-v1';
     var E = window.BAEngine;
     var AI = window.BAAI;
@@ -303,7 +303,7 @@
     }
     function bidText(b, r) {
       if (!b) return '';
-      if (b.kind === 'board') return b.superseded ? 'Out-boarded' : BOARD_NAME[b.level].replace('Quadruple', 'Quad').replace(' Board', '') + ' x' + b.level;
+      if (b.kind === 'board') return BOARD_NAME[b.level].replace('Quadruple', 'Quad').replace(' Board', '') + ' x' + b.level;
       if (b.kind === 'boston') return 'Boston ' + b.value;
       if (b.kind === 'partner') return r && r.team[E.teamOf(r.bidOrder.filter(function (s) { return r.bids[s] === b; })[0] || 0)].boston ? 'with partner' : 'pass';
       return (b.rainbow ? '\ud83c\udf08 ' : '') + 'Bid ' + b.value;
@@ -341,7 +341,7 @@
         if (a.board) {
           if (a.board === 2) return who + ' boarded!';
           var prevHolder = E.boardHolder(before.round);
-          return who + (prevHolder && prevHolder !== E.teamOf(a.seat) ? ' took the Board with a ' : ' raised to ') + BOARD_NAME[a.board] + ' (x' + a.board + ')!';
+          return who + (prevHolder && prevHolder !== E.teamOf(a.seat) ? ' counter-boarded with a ' : ' raised to ') + BOARD_NAME[a.board] + ' (x' + a.board + ')!';
         }
         if (E.boardHolder(before.round) === E.teamOf(a.seat)) return who + ' passed';
         if (a.boston) return who + ' called Boston for ' + a.value + '!';
@@ -497,7 +497,7 @@
       } else if (mode === 'board') {
         var holder = o.boardHolder;
         html += '<div class="board-grid" style="grid-template-columns:1fr"><button data-act="bid-board" data-level="' + o.boardNext + '">' + BOARD_NAME[o.boardNext] + ' x' + o.boardNext + '<span>' + (10 * o.boardNext) + ' a trick \u00b7 your team must take all ' + r.cards + '</span></button></div>';
-        html += '<div class="hintline">' + (holder && holder !== 'A' ? 'Takes the Board away from them \u2014 their Board is cancelled and they just try to set you.' : 'Your team bids every trick. Your partner can Double it. No bags.') + ' Each later bidder can raise it one level, up to Quad x8.</div>';
+        html += '<div class="hintline">' + (holder && holder !== 'A' ? 'Counter-board: they keep their Board too, so both teams must take every trick \u2014 at least one team gets set. Only with a monster hand.' : 'Your team bids every trick. Your partner can Double it. No bags.') + ' Each later bidder can raise it one level, up to Quad x8.</div>';
       } else {
         html += '<div class="pad-grid">';
         for (var b = 6; b <= r.cards; b++) html += '<button data-act="bid-boston" data-value="' + b + '">' + b + '</button>';
@@ -599,8 +599,8 @@
         '<li><b>Trump must be broken</b>: you can\u2019t lead trump (or a joker) until someone has played trump on another suit, unless your hand is all trump.</li>' +
         '<li>If only the two jokers are left after the deal (13-card hand), the dealer\u2019s last card sets trump.</li>' +
         '<li><b>Board escalates:</b> nobody can open higher than Board x2. Once someone has Boarded, each later bidder (either team, even after someone in between bid normally) may raise it one level: Board \u2192 Double \u2192 Triple \u2192 Quadruple. If your partner holds the Board, your only choices are raise or pass.</li>' +
-        '<li><b>Out-boarded:</b> the latest raise owns the Board. If the other team raises your Board, your Board is cancelled; your team\u2019s bid becomes whatever numbers you bid (usually 0), so every trick you take is a bag, and your job is to set them.</li>' +
-        '<li>The first player on the team holding the Board leads. Boston is called during your bid and takes the place of your partner\u2019s bid. Rainbow is offered automatically when you\u2019re dealt one.</li>' +
+        '<li><b>Counter-board:</b> if the other team raises your Board, you <b>keep</b> your Board at its level and they hold theirs. Each team scores its own Board (take every trick = plus, otherwise minus), so at least one team gets set.</li>' +
+        '<li>Whoever bid the highest Board leads. Boston is called during your bid and takes the place of your partner\u2019s bid. Rainbow is offered automatically when you\u2019re dealt one.</li>' +
         '<li>Bids can\u2019t add up to more tricks than there are cards for one team.</li></ul>' +
         '<div class="ver">' + PLAY_VERSION + ' \u00b7 scoring from scorecard ' + esc(BA.APP_VERSION) + '</div>' +
         '<button class="primary" data-act="close-sheet">Got it</button>';

@@ -142,13 +142,16 @@
     if (t.board) return round.cards;
     if (t.boston) return t.bostonBid;
     const seats = team === 'A' ? [0, 2] : [1, 3];
-    // Only numeric bids count; a Board that was out-boarded counts as 0.
+    // Only numeric bids count (a Board team's bid is every trick, handled above).
     return seats.reduce(function (sum, s) { const b = round.bids[s]; return sum + (b && b.kind === 'num' ? b.value : 0); }, 0);
   }
 
-  /** Team currently holding the Board contract ('A', 'B' or null). */
+  /** Team holding the highest Board this hand ('A', 'B' or null). Both teams can hold a Board. */
   function boardHolder(round) {
-    return round.team.A.board ? 'A' : round.team.B.board ? 'B' : null;
+    const a = round.team.A.board || 0;
+    const b = round.team.B.board || 0;
+    if (!a && !b) return null;
+    return a >= b ? 'A' : 'B';
   }
 
   /**
@@ -174,7 +177,7 @@
     const max = Math.max(0, r.cards - partnerNum);
     let min = 0;
     if (tc.rainbow && rb) min = Math.min(max, Math.max(0, rb.need - partnerNum));
-    const ownBoard = boardHolder(r) === team;
+    const ownBoard = !!tc.board;
     const canRainbow = !!(rb && r.rainbowEligible[seat] && !tc.rainbow && !tc.board && !tc.boston);
     const next = nextBoardMult(r);
     const canBoard = !!next && !tc.rainbow && !tc.boston;
@@ -235,12 +238,9 @@
       const team = teamOf(a.seat);
       const other = team === 'A' ? 'B' : 'A';
       if (!r.boardChain) r.boardChain = [];
-      if (r.team[other].board) {
-        // Out-boarded: the other team's Board is gone; their numeric bids (usually 0) stand.
-        r.team[other].board = 0;
-        r.bidOrder.forEach(function (s) { if (teamOf(s) === other && r.bids[s] && r.bids[s].kind === 'board') r.bids[s].superseded = true; });
-      }
-      r.bidOrder.forEach(function (s) { if (teamOf(s) === team && r.bids[s] && r.bids[s].kind === 'board') r.bids[s].superseded = false; });
+      // A counter-Board doesn't cancel the other team's Board: both teams keep their own level
+      // and each scores its own Board, so at least one of them gets set.
+      void other;
       r.boardChain.push({ seat: a.seat, mult: a.board });
       tc.board = a.board;
       tc.boston = false;
@@ -274,12 +274,12 @@
       return;
     }
     // Everyone has bid: the highest individual bid leads (ties go to whoever bid it first).
-    // With a Board on, the holding team's first Boarder leads.
+    // With a Board on, whoever bid the highest Board leads.
     let best = -1;
     let leader = r.bidOrder[0];
     const holder = boardHolder(r);
     if (holder) {
-      leader = r.boardChain.filter(function (b) { return teamOf(b.seat) === holder; })[0].seat;
+      leader = r.boardChain[r.boardChain.length - 1].seat;
     } else {
       r.bidOrder.forEach(function (s) {
         const b = r.bids[s];

@@ -95,10 +95,12 @@
     const sure = sureTopTrumps(hand, r.trump);
     if (o.passOnly) {
       // Partner has the Board: usually Double it (one level up) unless this hand is really weak.
-      const raise = o.canBoard && (sure >= 1 || r.cards <= 3 || est >= r.cards * 0.15);
+      const otherTeamBoarded = !!r.team[E.teamOf(seat) === 'A' ? 'B' : 'A'].board;
+      // If the other team counter-boarded, one Board is going down: only raise with a lock.
+      const raise = o.canBoard && (otherTeamBoarded ? sure >= r.cards : (sure >= 1 || r.cards <= 3 || est >= r.cards * 0.15));
       return raise ? { type: 'bid', seat: seat, board: o.boardNext } : { type: 'bid', seat: seat, value: 0 };
     }
-    // Open a Board, or take it from the other team, only when the hand can't lose a trick.
+    // Open a Board, or counter-board the other team, only when the hand can't lose a trick.
     if (o.canBoard && sure >= r.cards) return { type: 'bid', seat: seat, board: o.boardNext };
     if (o.canBoston && r.cards >= 6) {
       const aces = SUITS.filter(function (s) { return s !== r.trump && hand.indexOf(s + '14') >= 0; }).length;
