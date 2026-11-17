@@ -8,7 +8,7 @@
   if (typeof module === 'object' && module.exports) module.exports = factory(require('../score.js'));
   else root.BAEngine = factory(root.BackAlley);
 })(typeof self !== 'undefined' ? self : this, function (BA) {
-  const ENGINE_VERSION = 1;
+  const ENGINE_VERSION = 1; // state format version (unchanged by the v2 joker-lead rule)
   const SUITS = ['S', 'H', 'D', 'C'];
   const SUIT_KEY = { S: 'spades', H: 'hearts', D: 'diamonds', C: 'clubs' };
   const BIG = 'JB';
@@ -261,7 +261,27 @@
       return nonTrump.length ? nonTrump : hand.slice();
     }
     const follow = hand.filter(function (c) { return effSuit(c, r.trump) === led; });
-    return follow.length ? follow : hand.slice();
+    if (!follow.length) return hand.slice();
+    const forced = jokerLeadForced(r, seat, follow);
+    if (forced) return [forced];
+    return follow;
+  }
+
+  /**
+   * House rule for joker leads (follow = this seat's trumps, non-empty):
+   *  - Big Joker led: the leader's opponents must play their highest trump (Little Joker counts),
+   *    the leader's partner must play their lowest trump.
+   *  - Little Joker led: everyone must play their lowest trump.
+   * Returns the forced card, or null when the lead isn't a joker.
+   */
+  function jokerLeadForced(r, seat, follow) {
+    const lead = r.trick[0];
+    if (!lead || !isJoker(lead.card)) return null;
+    const byPower = follow.slice().sort(function (a, b) { return power(a, r.trump, r.trump) - power(b, r.trump, r.trump); });
+    const lowest = byPower[0];
+    const highest = byPower[byPower.length - 1];
+    if (lead.card === LITTLE) return lowest;
+    return teamOf(seat) === teamOf(lead.seat) ? lowest : highest;
   }
 
   function trickWinner(trick, trump) {
@@ -407,6 +427,7 @@
     teamBid: teamBid,
     bidOptions: bidOptions,
     legalCards: legalCards,
+    jokerLeadForced: jokerLeadForced,
     ledSuit: ledSuit,
     trickWinner: trickWinner,
     validate: validate,

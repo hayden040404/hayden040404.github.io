@@ -1,7 +1,7 @@
 /* Back Alley — computer players. Pure functions over engine state; no DOM.
  * Bidding: estimate likely tricks from jokers, trump honors and length, off-suit aces/kings
  * and short suits, scaled by how many cards are actually in play this hand.
- * Play: follow suit, win as cheaply as possible when the team still needs tricks, let a
+ * Play: follow suit (joker leads force highest/lowest trump per house rules — the engine allows only that card), win as cheaply as possible when the team still needs tricks, let a
  * winning partner have the trick, shed high cards (duck) once the bid is made unless
  * setting the other team is realistic.
  */
@@ -199,7 +199,15 @@
       const others = [1, 2, 3].map(function (j) { return (seat + j) % 4; });
       const opps = others.filter(function (s) { return s !== partner; });
       if (win) {
-        const sure = legal.filter(function (c) { return !beatable(state, k, c, E.effSuit(c, trump), opps); });
+        const sure = legal.filter(function (c) {
+          if (c === E.LITTLE) {
+            // Little Joker lead forces everyone's lowest trump, so it only loses to a Big Joker held as someone's only trump.
+            const bigOut = k.unseen.indexOf(E.BIG) >= 0;
+            const otherTrumps = k.unseen.filter(function (u) { return u !== E.BIG && E.effSuit(u, trump) === trump; }).length;
+            return !bigOut || otherTrumps >= 3;
+          }
+          return !beatable(state, k, c, E.effSuit(c, trump), opps);
+        });
         const sureOff = sure.filter(function (c) { return E.effSuit(c, trump) !== trump; });
         if (sureOff.length) return sureOff.sort(function (a, b) { return E.rankOf(b) - E.rankOf(a); })[0];
         if (sure.length) return sure.sort(function (a, b) { return E.power(b, trump, trump) - E.power(a, trump, trump); })[0];

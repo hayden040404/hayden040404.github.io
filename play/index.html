@@ -226,7 +226,7 @@
   <script>
   (function () {
     'use strict';
-    var PLAY_VERSION = 'Play v1';
+    var PLAY_VERSION = 'Play v2';
     var STORE_KEY = 'backalley-play-v1';
     var E = window.BAEngine;
     var AI = window.BAAI;
@@ -444,7 +444,13 @@
       if (ui.toast) return { text: ui.toast, mine: false };
       if (state.phase === 'playing') {
         var t = E.waitingOn(state);
-        if (t === 0) return { text: state.round.trick.length ? 'Your turn \u2014 follow suit if you can' : 'Your lead \u2014 tap a card', mine: true };
+        if (t === 0) {
+          var l0 = state.round.trick[0];
+          if (l0 && E.isJoker(l0.card) && E.legalCards(state, 0).length === 1 && E.effSuit(E.legalCards(state, 0)[0], state.round.trump) === state.round.trump) {
+            return { text: (l0.card === E.BIG ? 'Big Joker led \u2014 play your ' + (E.teamOf(l0.seat) === 'A' ? 'lowest' : 'highest') : 'Little Joker led \u2014 play your lowest') + ' trump', mine: true };
+          }
+          return { text: state.round.trick.length ? 'Your turn \u2014 follow suit if you can' : 'Your lead \u2014 tap a card', mine: true };
+        }
         return { text: seatName(t) + ' is playing\u2026', mine: false };
       }
       return { text: '', mine: false };
@@ -577,6 +583,7 @@
         '<li>Highest single bid leads the first trick; a tie goes to whoever bid it first. A Board counts as bidding every trick. After that, whoever wins a trick leads the next.</li>' +
         '<li>You must <b>follow the suit led</b> if you can. If you can\u2019t, play anything, including trump.</li>' +
         '<li>Jokers are <b>trump</b>: when trump is led and a joker is your only trump, you must play it; when another suit is led, a joker can only be played if you\u2019re out of that suit.</li>' +
+        '<li><b>Big Joker led:</b> the leader\u2019s opponents must play their <b>highest</b> trump (a Little Joker counts as highest), and the leader\u2019s partner must play their <b>lowest</b> trump. <b>Little Joker led:</b> everyone plays their <b>lowest</b> trump. No trump? Play anything.</li>' +
         '<li><b>Trump must be broken</b>: you can\u2019t lead trump (or a joker) until someone has played trump on another suit, unless your hand is all trump.</li>' +
         '<li>If only the two jokers are left after the deal (13-card hand), the dealer\u2019s last card sets trump.</li>' +
         '<li>Board and Boston are called during your bid and take the place of your partner\u2019s bid. Rainbow is offered automatically when you\u2019re dealt one.</li>' +
@@ -688,7 +695,12 @@
       if (a === 'play') {
         if (!state || state.phase !== 'playing' || E.waitingOn(state) !== 0 || ui.hold || ui.sheet) return;
         var card = t.getAttribute('data-card');
-        if (E.legalCards(state, 0).indexOf(card) < 0) { ui.toast = state.round.trick.length ? 'You have to follow suit' : 'You can\u2019t lead trump until it\u2019s broken'; render(); setTimeout(function () { if (ui.toast.indexOf('You ') === 0) { ui.toast = ''; render(); } }, 1600); return; }
+        if (E.legalCards(state, 0).indexOf(card) < 0) { var lead0 = state.round.trick[0];
+          var leg = E.legalCards(state, 0);
+          ui.toast = !lead0 ? 'You can\u2019t lead trump until it\u2019s broken'
+            : (E.isJoker(lead0.card) && leg.length === 1 && E.effSuit(leg[0], state.round.trump) === state.round.trump)
+              ? (lead0.card === E.BIG ? 'Big Joker led \u2014 you must play your ' + (E.teamOf(lead0.seat) === 'A' ? 'lowest' : 'highest') + ' trump' : 'Little Joker led \u2014 you must play your lowest trump')
+              : 'You have to follow suit'; render(); setTimeout(function () { if (ui.toast.indexOf('You ') === 0) { ui.toast = ''; render(); } }, 1600); return; }
         ui.toast = '';
         act({ type: 'play', seat: 0, card: card });
       } else if (a === 'bid' || a === 'bid-boston' || a === 'bid-board') {
