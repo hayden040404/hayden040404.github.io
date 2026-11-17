@@ -351,6 +351,9 @@ function validateContracts(hand) {
       warnings.push(team + ' declared Boston, so the bid should be 6 to ' + cards + '.');
     }
   });
+  if (normalizeBoard(hand.aBoard) && normalizeBoard(hand.bBoard)) {
+    warnings.push('Only one team can hold the Board \u2014 the last raise takes it, and the other team plays its normal bid.');
+  }
   if (hand.aBostonMade === true && hand.bBostonMade === true) {
     warnings.push('Both teams can’t have taken the first 6 tricks.');
   }
@@ -413,7 +416,7 @@ function firstIncompleteIndex(hands) {
   return -1;
 }
 
-const APP_VERSION = 'v13';
+const APP_VERSION = 'v14';
 
 const api = {
   APP_VERSION: APP_VERSION,

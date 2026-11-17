@@ -5,7 +5,7 @@
  */
 'use strict';
 
-const CACHE_NAME = 'backalley-v13';
+const CACHE_NAME = 'backalley-v14';
 const ASSETS = [
   './',
   './index.html',
