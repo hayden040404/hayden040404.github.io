@@ -103,6 +103,24 @@ function normalizeBoard(value) {
   return BOARD_MULTS.indexOf(n) >= 0 ? n : 0;
 }
 
+/**
+ * Board levels a team may pick on this hand. Board escalates one step at a time:
+ * nobody opens above Board x2; a partner can Double their teammate's Board; once the other
+ * team holds a Board, the only way in is the next level up (which takes the Board from them).
+ * Always includes 0 (no Board) and the team's current level (so mistakes can be fixed).
+ */
+function allowedBoardLevels(hand, side) {
+  const other = side === 'a' ? 'b' : 'a';
+  const own = normalizeBoard(hand[side + 'Board']);
+  const oth = normalizeBoard(hand[other + 'Board']);
+  let allowed;
+  if (oth) allowed = [0].concat(oth < 8 ? [oth + 2] : []);
+  else if (own >= 6) allowed = BOARD_MULTS.filter(function (m) { return m <= own; });
+  else allowed = own ? [0, 2, 4] : [0, 2];
+  if (own && allowed.indexOf(own) < 0) allowed.push(own);
+  return allowed.sort(function (x, y) { return x - y; });
+}
+
 function boardBadge(mult) {
   const level = BOARD_LEVELS.find(function (l) { return l.mult === normalizeBoard(mult); });
   return level && level.badge ? level.badge : '';
@@ -416,7 +434,7 @@ function firstIncompleteIndex(hands) {
   return -1;
 }
 
-const APP_VERSION = 'v14';
+const APP_VERSION = 'v15';
 
 const api = {
   APP_VERSION: APP_VERSION,
@@ -434,6 +452,7 @@ const api = {
   isHandComplete: isHandComplete,
   normalizeBoard: normalizeBoard,
   boardBadge: boardBadge,
+  allowedBoardLevels: allowedBoardLevels,
   contractBadge: contractBadge,
   scoreHand: scoreHand,
   scoreTeamHand: scoreTeamHand,

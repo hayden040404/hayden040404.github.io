@@ -801,10 +801,18 @@
       render();
     }
     function setBoard(index, side, mult) {
-      pushUndo();
       var hand = state.game.hands[index];
       var next = BA.normalizeBoard(mult);
       if (hand[side + 'Board'] === next) next = 0;
+      if (BA.allowedBoardLevels(hand, side).indexOf(next) < 0) return;
+      pushUndo();
+      hand = state.game.hands[index];
+      var other = side === 'a' ? 'b' : 'a';
+      if (next && BA.normalizeBoard(hand[other + 'Board'])) {
+        // Out-boarded: the other team loses its Board and goes back to a normal bid (usually 0).
+        hand[other + 'Board'] = 0;
+        hand[other + 'Bid'] = null;
+      }
       hand[side + 'Board'] = next;
       if (next) {
         hand[side + 'Boston'] = false;
@@ -1058,12 +1066,14 @@
     }
     function contractPicker(index, side, hand) {
       var html = '<div class="chips" role="group" aria-label="Board level">';
+      var allowedLv = BA.allowedBoardLevels(hand, side);
       BA.BOARD_LEVELS.forEach(function (lvl) {
         var on = BA.normalizeBoard(hand[side + 'Board']) === lvl.mult;
+        var ok = allowedLv.indexOf(lvl.mult) >= 0;
         var label = lvl.mult
           ? esc(lvl.short) + '<span class="sub">x' + lvl.mult + '</span>'
           : esc(lvl.short);
-        html += '<button class="chip' + (on ? ' on' : '') + '" type="button" data-act="set-board" data-index="' + index + '" data-side="' + side + '" data-mult="' + lvl.mult + '">' + label + '</button>';
+        html += '<button class="chip' + (on ? ' on' : '') + '" type="button" data-act="set-board" data-index="' + index + '" data-side="' + side + '" data-mult="' + lvl.mult + '"' + (ok ? '' : ' disabled') + '>' + label + '</button>';
       });
       html += '</div>';
       var canBoston = hand.cards >= 6;
