@@ -413,7 +413,7 @@ function firstIncompleteIndex(hands) {
   return -1;
 }
 
-const APP_VERSION = 'v12';
+const APP_VERSION = 'v13';
 
 const api = {
   APP_VERSION: APP_VERSION,

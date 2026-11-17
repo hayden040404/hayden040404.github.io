@@ -5,7 +5,7 @@
  */
 'use strict';
 
-const CACHE_NAME = 'backalley-v12';
+const CACHE_NAME = 'backalley-v13';
 const ASSETS = [
   './',
   './index.html',
@@ -32,7 +32,8 @@ self.addEventListener('activate', function (event) {
   event.waitUntil(
     caches.keys().then(function (keys) {
       return Promise.all(keys.map(function (key) {
-        if (key !== CACHE_NAME) return caches.delete(key);
+        // Only clean up the scorecard's own caches; /play/ keeps its backalley-play-* cache.
+        if (key.indexOf('backalley-v') === 0 && key !== CACHE_NAME) return caches.delete(key);
       }));
     }).then(function () { return self.clients.claim(); })
   );
