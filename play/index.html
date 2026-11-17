@@ -942,7 +942,7 @@
           store.setOwner(account.uid);
           if (!state) { var c = store.current(); if (c && c.state && c.state.round) { state = c.state; gameId = c.id; } }
           backfillHistory();
-          ui.authBusy = false; ui.authToken = null;
+          if (ui.authBusy === 'google') { ui.authBusy = false; ui.authToken = null; }
           ui.authMsg = 'Signed in' + (moved.games ? '. ' + moved.games + ' game' + (moved.games === 1 ? '' : 's') + ' from this phone moved into your account.' : '.');
           if (ui.sheet && ui.sheet.type === 'email') ui.sheet = { type: 'profile' };
         }
