@@ -273,7 +273,7 @@
   <script>
   (function () {
     'use strict';
-    var PLAY_VERSION = 'Play v6';
+    var PLAY_VERSION = 'Play v7';
     var PREFS_KEY = 'backalley-play-prefs';
     var ACCOUNT_KEY = 'backalley-play-account';
     var store = window.BASaves.createStore(window.localStorage);
@@ -831,7 +831,7 @@
         html += '<div class="sync-row">' + syncLine() + '<button class="mini-btn ghost" data-act="sync-now">Sync now</button></div>';
       } else if (Cloud.available()) {
         html += '<div class="signin-box"><p>Sign in to keep your saved games, stats and achievements in your account and pick up on any device. Games on this phone move into your account.</p>' +
-          '<button class="primary google" data-act="signin-google"' + (ui.authBusy ? ' disabled' : '') + '><span class="g">G</span> Continue with Google</button>' +
+          googleButtonHTML() +
           '<button class="secondary" data-act="open-email">Sign in with email</button>' +
           (ui.authErr ? '<p class="err">' + esc(ui.authErr) + '</p>' : '') + '</div>';
       } else {
@@ -859,6 +859,19 @@
       if (account) html += '<button class="secondary" data-act="sign-out">Sign out</button><p class="muted" style="font-size:12px;margin-top:8px">Signing out keeps everything in your account. This phone goes back to guest play.</p>';
       return html + '<button class="secondary" data-act="close-sheet">Done</button>';
     }
+    // Google button: shows loading / waiting states instead of silently staying disabled.
+    function googleButtonHTML() {
+      var label = 'Continue with Google';
+      var dis = false;
+      var note = '';
+      if (ui.cloudState === 'failed') { label = 'Retry Google sign-in'; note = '<p class="err">Couldn\u2019t load Google sign-in' + (navigator.onLine === false ? ' (you\u2019re offline)' : '') + '. Check your connection and tap retry.</p>'; }
+      else if (!Cloud.ready()) { label = 'Loading Google sign-in\u2026'; dis = true; }
+      else if (ui.authBusy === 'google') {
+        label = 'Waiting for Google\u2026'; dis = true;
+        note = '<button class="linkish" data-act="auth-cancel">Stuck? Cancel and try again</button>';
+      }
+      return '<button class="primary google" data-act="signin-google"' + (dis ? ' disabled' : '') + '><span class="g">G</span> ' + label + '</button>' + note;
+    }
     function emailHTML() {
       var m = ui.emailMode || 'signin';
       var f = ui.form || {};
@@ -880,10 +893,18 @@
       var pw = document.getElementById('f-pw');
       return pw ? pw.value : '';
     }
-    function authRun(p, after) {
-      ui.authBusy = true; ui.authErr = ''; ui.authMsg = ''; render();
-      p.then(function (r) { ui.authBusy = false; if (after) after(r); render(); })
-        .catch(function (err) { ui.authBusy = false; ui.authErr = Cloud.friendly(err); render(); });
+    function authRun(p, after, kind) {
+      var token = {};
+      ui.authToken = token;
+      ui.authBusy = kind || true; ui.authErr = ''; ui.authMsg = ''; render();
+      p.then(function (r) {
+        if (ui.authToken !== token) return;
+        if (r && r.redirecting) return; // leaving the page for Google
+        ui.authBusy = false; if (after) after(r); render();
+      }).catch(function (err) {
+        if (ui.authToken !== token) return;
+        ui.authBusy = false; ui.authErr = Cloud.friendly(err); render();
+      });
     }
 
     // ---------- accounts + sync ----------
@@ -921,6 +942,7 @@
           store.setOwner(account.uid);
           if (!state) { var c = store.current(); if (c && c.state && c.state.round) { state = c.state; gameId = c.id; } }
           backfillHistory();
+          ui.authBusy = false; ui.authToken = null;
           ui.authMsg = 'Signed in' + (moved.games ? '. ' + moved.games + ' game' + (moved.games === 1 ? '' : 's') + ' from this phone moved into your account.' : '.');
           if (ui.sheet && ui.sheet.type === 'email') ui.sheet = { type: 'profile' };
         }
@@ -946,7 +968,20 @@
     function startCloud() {
       if (!Cloud.available()) return;
       Cloud.onUser(onCloudUser);
-      Cloud.load().catch(function (err) { if (account) setSyncStatus('offline', err); });
+      Cloud.onRedirectResult(function (err) {
+        // Back from the Google page (home-screen app): show the result on the profile screen.
+        ui.authBusy = false;
+        if (err) ui.authErr = Cloud.friendly(err);
+        ui.sheet = { type: 'profile' };
+        render();
+      });
+      if (Cloud.redirectPending()) { ui.authBusy = 'google'; ui.authMsg = 'Finishing Google sign-in\u2026'; }
+      ui.cloudState = 'loading';
+      Cloud.load().then(function () { ui.cloudState = 'ready'; render(); }, function (err) {
+        ui.cloudState = 'failed';
+        if (ui.authBusy === 'google') ui.authBusy = false;
+        if (account) setSyncStatus('offline', err); else render();
+      });
     }
 
     function menuHTML() {
@@ -1022,7 +1057,12 @@
       else if (a === 'open-email') { ui.authErr = ''; ui.authMsg = ''; ui.emailMode = 'signin'; ui.sheet = { type: 'email' }; render(); }
       else if (a === 'email-mode') { readForm(); ui.authErr = ''; ui.authMsg = ''; ui.emailMode = t.getAttribute('data-mode'); render(); }
       else if (a === 'email-submit') { submitEmail(); }
-      else if (a === 'signin-google') { authRun(Cloud.signInGoogle()); }
+      else if (a === 'signin-google') {
+        if (ui.cloudState === 'failed') { ui.cloudState = 'loading'; ui.authErr = ''; render(); Cloud.load().then(function () { ui.cloudState = 'ready'; render(); }, function () { ui.cloudState = 'failed'; render(); }); return; }
+        if (!Cloud.ready() || ui.authBusy) return;
+        authRun(Cloud.signInGoogle(), null, 'google'); // called synchronously from the tap so Safari allows the Google window
+      }
+      else if (a === 'auth-cancel') { ui.authToken = null; ui.authBusy = false; ui.authErr = ''; render(); }
       else if (a === 'sync-now') { if (sync) sync.syncAll(); }
       else if (a === 'sign-out') {
         var done = function () { Cloud.signOut().then(goGuest, goGuest); };

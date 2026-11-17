@@ -3,7 +3,9 @@
  * player can only read/write their own users/{uid} documents). Set to null to run guest-only. */
 self.BA_FIREBASE_CONFIG = {
   apiKey: 'AIzaSyDaHdWOAG3CsWAyPF8HL0AKNkYi6bv7cGg',
-  authDomain: 'back-alley-play.firebaseapp.com',
+  // Sign-in helper pages are self-hosted at hayden040404.github.io/__/auth/ so Google sign-in
+  // stays same-site (Safari/iOS block the cross-site firebaseapp.com storage it otherwise needs).
+  authDomain: 'hayden040404.github.io',
   projectId: 'back-alley-play',
   storageBucket: 'back-alley-play.firebasestorage.app',
   messagingSenderId: '544263916492',

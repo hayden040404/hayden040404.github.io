@@ -9,6 +9,18 @@
   var fb = null;          // { app, auth, db, A: authModule, F: firestoreModule }
   var loading = null;
   var userCbs = [];
+  var redirectCbs = [];
+  var REDIRECT_FLAG = 'ba-google-redirect';
+
+  // iPhone/iPad home-screen app (or any installed PWA): popups open in a separate browser
+  // sheet that can't report back, so Google sign-in uses a full-page redirect there instead.
+  function isStandalone() {
+    try { return window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches; } catch (e) { return false; }
+  }
+  function isIOS() {
+    var ua = navigator.userAgent || '';
+    return /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  }
 
   function available() { return !!(config && config.apiKey && config.projectId); }
 
@@ -31,7 +43,14 @@
         F.connectFirestoreEmulator(db, '127.0.0.1', 8080);
       }
       fb = { app: app, auth: auth, db: db, A: A, F: F };
-      A.getRedirectResult(auth).catch(function () {});
+      // Finish a Google redirect sign-in (home-screen app) and report the outcome.
+      var pending = false;
+      try { pending = sessionStorage.getItem(REDIRECT_FLAG) === '1'; sessionStorage.removeItem(REDIRECT_FLAG); } catch (e) {}
+      A.getRedirectResult(auth).then(function (res) {
+        if (pending) redirectCbs.forEach(function (cb) { cb(null, res); });
+      }).catch(function (err) {
+        redirectCbs.forEach(function (cb) { cb(err); });
+      });
       A.onAuthStateChanged(auth, function (u) {
         var info = u ? { uid: u.uid, email: u.email || '', name: u.displayName || '', provider: (u.providerData[0] && u.providerData[0].providerId) || 'password', photo: u.photoURL || '' } : null;
         userCbs.forEach(function (cb) { try { cb(info); } catch (e) {} });
@@ -43,6 +62,9 @@
   }
 
   function onUser(cb) { userCbs.push(cb); }
+  function onRedirectResult(cb) { redirectCbs.push(cb); }
+  function ready() { return !!fb; }
+  function redirectPending() { try { return sessionStorage.getItem(REDIRECT_FLAG) === '1'; } catch (e) { return false; } }
 
   function friendly(err) {
     var code = (err && err.code) || '';
@@ -59,19 +81,29 @@
       'auth/popup-closed-by-user': 'Sign-in was cancelled.',
       'auth/cancelled-popup-request': 'Sign-in was cancelled.',
       'auth/unauthorized-domain': 'This site isn\u2019t allowed to sign in yet (authorized domain missing).',
-      'auth/operation-not-allowed': 'That sign-in method isn\u2019t turned on yet.'
+      'auth/operation-not-allowed': 'That sign-in method isn\u2019t turned on yet.',
+      'auth/popup-blocked': 'Your browser blocked the Google window. Tap the button again.',
+      'auth/web-storage-unsupported': 'This browser is blocking storage that sign-in needs. Try Safari with Private Browsing off.',
+      'ba/not-ready': 'Google sign-in is still loading. Tap the button again.'
     };
     return map[code] || (err && err.message) || 'Something went wrong.';
   }
 
-  function signInGoogle() {
-    return load().then(function (f) {
-      var p = new f.A.GoogleAuthProvider();
-      p.setCustomParameters({ prompt: 'select_account' });
-      return f.A.signInWithPopup(f.auth, p).catch(function (err) {
-        if (err && (err.code === 'auth/popup-blocked' || err.code === 'auth/operation-not-supported-in-this-environment')) return f.A.signInWithRedirect(f.auth, p);
-        throw err;
-      });
+  function googleRedirect(f, p) {
+    try { sessionStorage.setItem(REDIRECT_FLAG, '1'); } catch (e) {}
+    return f.A.signInWithRedirect(f.auth, p).then(function () { return { redirecting: true }; });
+  }
+  /** Must be called straight from the tap (no awaits before it) so Safari allows the popup. */
+  function signInGoogle(opts) {
+    opts = opts || {};
+    if (!fb) return load().then(function () { var e = new Error('Google sign-in is still loading. Tap the button again.'); e.code = 'ba/not-ready'; throw e; });
+    var f = fb;
+    var p = new f.A.GoogleAuthProvider();
+    p.setCustomParameters({ prompt: 'select_account' });
+    if (opts.redirect || isStandalone()) return googleRedirect(f, p);
+    return f.A.signInWithPopup(f.auth, p).catch(function (err) {
+      if (err && (err.code === 'auth/popup-blocked' || err.code === 'auth/operation-not-supported-in-this-environment' || err.code === 'auth/web-storage-unsupported')) return googleRedirect(f, p);
+      throw err;
     });
   }
   function signInEmail(email, pw) { return load().then(function (f) { return f.A.signInWithEmailAndPassword(f.auth, email, pw); }); }
@@ -123,7 +155,8 @@
   }
 
   self.BACloud = {
-    available: available, load: load, onUser: onUser, friendly: friendly,
+    available: available, load: load, onUser: onUser, onRedirectResult: onRedirectResult, ready: ready,
+    redirectPending: redirectPending, isStandalone: isStandalone, isIOS: isIOS, friendly: friendly,
     signInGoogle: signInGoogle, signInEmail: signInEmail, createAccount: createAccount,
     resetPassword: resetPassword, signOut: signOut, remote: remote
   };
