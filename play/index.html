@@ -171,6 +171,7 @@
     .danger { background: rgba(244, 91, 105, 0.16); color: #ff8a94; }
     .backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.55); z-index: 40; }
     .sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 50; background: var(--elevated); border-radius: 20px 20px 0 0; padding: 8px 20px calc(20px + var(--safe-bot)); max-height: min(92dvh, 820px); overflow: auto; box-shadow: 0 -16px 40px rgba(0, 0, 0, 0.4); animation: up 0.22s ease-out; }
+    .sheet.still { animation: none; }
     @keyframes up { from { transform: translateY(40px); opacity: 0.6; } }
     .grab { width: 36px; height: 4px; border-radius: 999px; background: rgba(244, 239, 230, 0.22); margin: 6px auto 12px; }
     .sheet h2 { font-size: 20px; margin-bottom: 10px; letter-spacing: -0.02em; }
@@ -223,6 +224,37 @@
     .save-btns { display: flex; flex-direction: column; gap: 6px; flex: none; }
     .mini-btn { min-width: 78px; height: 34px; border-radius: 10px; background: var(--gold); color: var(--navy); font-weight: 700; font-size: 13px; }
     .mini-btn.del { background: rgba(244, 91, 105, 0.16); color: #ff8a94; }
+    .mi-sub { display: block; font-size: 12px; font-weight: 500; color: var(--muted); margin-top: 2px; }
+    .prof-head { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+    .avatar.big { width: 52px; height: 52px; font-size: 22px; background: #3a3220; color: var(--gold); flex: none; }
+    .sync-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; font-size: 13px; }
+    .sync.ok { color: #7ed69a; } .sync.warn { color: #ffb36b; } .sync.busy, .sync { color: var(--muted); }
+    .sync.ok, .sync.warn, .sync.busy { font-weight: 600; }
+    .mini-btn.ghost { background: var(--elevated-2); color: var(--text); border: 1px solid var(--line); min-width: 0; padding: 0 12px; }
+    .signin-box { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 12px; }
+    .signin-box p { margin: 0; font-size: 14px; color: var(--muted); }
+    .primary.google { display: flex; align-items: center; justify-content: center; gap: 10px; background: #fff; color: #1f1f1f; }
+    .primary.google .g { font-weight: 900; color: #4285f4; font-size: 18px; }
+    .primary[disabled] { opacity: 0.6; }
+    .err { color: #ff8a94; font-size: 14px; margin: 10px 0 0; }
+    .okmsg { color: #7ed69a; font-size: 14px; margin: 10px 0 0; }
+    .linkish { display: block; width: 100%; text-align: center; color: var(--muted); font-size: 14px; padding: 12px 0 2px; text-decoration: underline; }
+    .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+    .stat { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 8px 6px; text-align: center; min-width: 0; }
+    .stat b { display: block; font-size: 19px; font-variant-numeric: tabular-nums; }
+    .stat span { display: block; font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .achs { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .ach { display: flex; gap: 8px; align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 8px; opacity: 0.55; min-width: 0; }
+    .ach.on { opacity: 1; border-color: rgba(224, 184, 92, 0.5); background: linear-gradient(180deg, var(--gold-dim), var(--surface) 80%); }
+    .ach .ic { font-size: 22px; flex: none; width: 28px; text-align: center; }
+    .ach b { display: block; font-size: 13px; }
+    .ach span { display: block; font-size: 11px; color: var(--muted); line-height: 1.3; }
+    .ach-new { margin: 8px 0 4px; display: grid; gap: 6px; }
+    .hist { display: grid; gap: 4px; }
+    .hrow { display: flex; align-items: center; gap: 10px; font-size: 13px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+    .hrow .res { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; font-size: 12px; flex: none; }
+    .hrow .res.w { background: var(--gold); color: var(--navy); } .hrow .res.l { background: rgba(244, 91, 105, 0.2); color: #ff8a94; } .hrow .res.t { background: var(--elevated-2); }
+    .hrow .hd { flex: 1; color: var(--muted); } .hrow .hs { font-variant-numeric: tabular-nums; font-weight: 700; }
     .ver { color: var(--muted); font-size: 12px; margin-top: 10px; text-align: center; }
     @media (max-height: 700px) { :root { --cw: 54px; --tw: 46px; } .avatar { width: 34px; height: 34px; font-size: 14px; } .team-card .pts { font-size: 20px; } }
     @media (min-width: 600px) { .app { max-width: 560px; margin: 0 auto; } :root { --cw: 70px; --tw: 60px; } }
@@ -234,13 +266,24 @@
   <script src="engine.js"></script>
   <script src="ai.js"></script>
   <script src="saves.js"></script>
+  <script src="stats.js"></script>
+  <script src="sync.js"></script>
+  <script src="firebase-config.js"></script>
+  <script src="cloud.js"></script>
   <script>
   (function () {
     'use strict';
-    var PLAY_VERSION = 'Play v5';
+    var PLAY_VERSION = 'Play v6';
     var PREFS_KEY = 'backalley-play-prefs';
+    var ACCOUNT_KEY = 'backalley-play-account';
     var store = window.BASaves.createStore(window.localStorage);
+    var Stats = window.BAStats;
+    var Sync = window.BASync;
+    var Cloud = window.BACloud;
     var gameId = null;
+    var account = null;   // { uid, email, name } when signed in (cached so the app opens offline)
+    var sync = null;
+    var syncInfo = { status: '', at: 0, err: '' };
     var E = window.BAEngine;
     var AI = window.BAAI;
     var BA = window.BackAlley;
@@ -281,6 +324,20 @@
       try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch (e) {}
       if (!state) return;
       try { gameId = store.put(gameId, state); } catch (e) {}
+      if (state.phase === 'gameOver') recordFinished();
+      if (sync) { if (state.phase === 'gameOver' || state.phase === 'roundEnd') sync.schedule(300); else sync.schedule(); }
+    }
+    // A finished game becomes a history record (stats + achievements are derived from these).
+    function recordFinished(g) {
+      g = g || store.get(gameId);
+      if (!g || !g.state || g.state.phase !== 'gameOver') return;
+      var before = store.history();
+      if (before.some(function (r) { return r.id === g.id; })) return;
+      var rec = Stats.gameRecord(g.state, { id: g.id, startedAt: g.startedAt, finishedAt: g.updatedAt || Date.now() }, E);
+      if (store.addHistory(rec) && g.id === gameId) ui.newAch = Stats.newlyUnlocked(before, rec);
+    }
+    function backfillHistory() {
+      store.list().forEach(function (g) { if (g.finished) { try { recordFinished(g); } catch (e) {} } });
     }
     function load() {
       try {
@@ -288,6 +345,8 @@
         if (p) prefs = Object.assign(prefs, p);
         var legacy = store.migrateLegacy();
         if (legacy && legacy.prefs) prefs = Object.assign(prefs, legacy.prefs);
+        account = Cloud.available() ? JSON.parse(localStorage.getItem(ACCOUNT_KEY) || 'null') : null;
+        if (account && account.uid) store.setOwner(account.uid); else account = null;
         var cur = store.current();
         if (cur && cur.state && cur.state.engine === E.ENGINE_VERSION && cur.state.round) { state = cur.state; gameId = cur.id; }
       } catch (e) { state = null; gameId = null; }
@@ -298,7 +357,7 @@
       if (!g || !g.state || g.state.engine !== E.ENGINE_VERSION) return;
       state = g.state; gameId = g.id; store.setCurrent(g.id);
       if (state.round) state.names[0] = prefs.name || 'You';
-      ui.hold = null; ui.sheet = null; ui.enterKey = null; ui.dealtKey = null;
+      ui.hold = null; ui.sheet = null; ui.enterKey = null; ui.dealtKey = null; ui.newAch = null;
       ui.bid = { mode: 'num', rainbow: true };
       ui.toast = state.phase === 'gameOver' ? '' : 'Resumed \u2014 ' + roundTitle();
       render(); pump();
@@ -364,6 +423,7 @@
       prefs.lastMax = maxCards;
       state = E.newGame({ maxCards: maxCards, names: [prefs.name || 'You', 'Wes', 'Pat', 'Eve'] });
       gameId = null; // a new saved game; the previous one stays in Saved Games
+      ui.newAch = null;
       ui.sheet = null; ui.hold = null; ui.toast = seatName(state.round.dealer) + ' dealt. ' + SUIT_NAME[state.round.trump] + ' are trump.';
       ui.bid = { mode: 'num', rainbow: true };
       save(); render(); pump();
@@ -569,6 +629,13 @@
     }
 
     function render() {
+      var oldSheet = document.querySelector('.sheet');
+      var keepScroll = oldSheet && ui.sheet && ui.shownSheet === ui.sheet.type + (ui.sheet.id || '') ? oldSheet.scrollTop : 0;
+      if (ui.sheet && ui.sheet.type === 'email' && document.getElementById('f-email')) readForm();
+      renderInner();
+      if (keepScroll) { var ns = document.querySelector('.sheet'); if (ns) ns.scrollTop = keepScroll; }
+    }
+    function renderInner() {
       var root = document.getElementById('app');
       if (!state) { root.innerHTML = '<div class="app">' + headerHTML(null) + '<div class="table"></div></div>' + sheetHTML(); return; }
       var sc = E.score(state);
@@ -691,7 +758,10 @@
     function gameOverHTML(sc) {
       var title = sc.leader === 'A' ? 'You win!' : sc.leader === 'B' ? 'They win' : 'It\u2019s a tie';
       var html = '<div class="banner-win"><div class="who">Game over</div><h2>' + title + '</h2><p class="muted">Your team ' + sc.aTotal + ' \u00b7 Them ' + sc.bTotal + '</p></div>';
-      html += '<button class="primary" data-act="open-newgame">Play again</button><button class="secondary" data-act="open-score">Scorecard</button><button class="secondary" data-act="open-saves">Saved games</button>';
+      if (ui.newAch && ui.newAch.length) {
+        html += '<div class="ach-new"><div class="label" style="margin-top:4px">Achievement' + (ui.newAch.length > 1 ? 's' : '') + ' unlocked</div>' + ui.newAch.map(function (a) { return '<div class="ach on"><span class="ic">' + a.icon + '</span><div><b>' + esc(a.name) + '</b><span>' + esc(a.desc) + '</span></div></div>'; }).join('') + '</div>';
+      }
+      html += '<button class="primary" data-act="open-newgame">Play again</button><button class="secondary" data-act="open-score">Scorecard</button><button class="secondary" data-act="open-profile">Profile &amp; achievements</button><button class="secondary" data-act="open-saves">Saved games</button>';
       return html;
     }
 
@@ -708,6 +778,8 @@
       html += '<button class="primary" data-act="start">Deal</button>';
       var nSaved = store.list().length;
       if (nSaved) html += '<button class="secondary" data-act="open-saves">Saved games (' + nSaved + ')</button>';
+      if (!account && Cloud.available()) html += '<button class="secondary" data-act="open-profile">Sign in \u00b7 sync games &amp; achievements</button>';
+      else if (account) html += '<button class="secondary" data-act="open-profile">Profile &amp; achievements</button>';
       if (state) html += '<button class="secondary" data-act="close-sheet">Cancel</button>';
       if (!isStandalone() && !prefs.tipDismissed) html += '<div class="tip"><div>On iPhone, open this in <strong>Safari</strong>, tap Share, then <strong>Add to Home Screen</strong> to play offline like an app.</div></div>';
       return html;
@@ -728,7 +800,7 @@
           '<div class="save-btns"><button class="mini-btn" data-act="resume" data-id="' + esc(g.id) + '">' + (sm.finished ? 'View' : isCur ? 'Back' : 'Resume') + '</button>' +
           '<button class="mini-btn del" data-act="ask-delete" data-id="' + esc(g.id) + '" aria-label="Delete game">Delete</button></div></div>';
       });
-      return html + '<div class="ver">Games save automatically after every move, on this phone only.</div>';
+      return html + '<div class="ver">' + (account ? 'Games save after every move and sync to ' + esc(account.email || 'your account') + '.' : 'Games save automatically after every move, on this phone only.' + (Cloud.available() ? ' <a href="#" data-act="open-profile">Sign in</a> to keep them in your account.' : '')) + '</div>';
     }
 
     function confirmDeleteHTML(id) {
@@ -738,8 +810,148 @@
         '<button class="danger" data-act="confirm-delete" data-id="' + esc(id) + '">Delete game</button><button class="secondary" data-act="open-saves">Cancel</button>';
     }
 
+    // ---------- profile, stats, achievements, sign-in ----------
+    function syncLine() {
+      var st = syncInfo.status;
+      if (st === 'syncing') return '<span class="sync busy">Syncing\u2026</span>';
+      if (st === 'synced') return '<span class="sync ok">\u2713 Synced' + (syncInfo.at ? ' ' + esc(new Date(syncInfo.at).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })) : '') + '</span>';
+      if (st === 'offline') return '<span class="sync warn">Offline \u2014 will sync when you\u2019re back online</span>';
+      if (st === 'error') return '<span class="sync warn">Couldn\u2019t sync: ' + esc(syncInfo.err) + '</span>';
+      return '<span class="sync">Connecting\u2026</span>';
+    }
+    function profileHTML() {
+      var recs = store.history();
+      var st = Stats.computeStats(recs);
+      var achs = Stats.computeAchievements(recs);
+      var got = achs.filter(function (a) { return a.unlocked; }).length;
+      var display = account ? (account.name || prefs.name || 'Player') : (prefs.name && prefs.name !== 'You' ? prefs.name : 'Guest');
+      var html = '<div class="prof-head"><div class="avatar big">' + esc((display || '?').charAt(0).toUpperCase()) + '</div><div><h2 style="margin:0">' + esc(display) + '</h2><div class="muted" style="font-size:13px">' +
+        (account ? esc(account.email || 'Signed in') : 'Guest \u00b7 saved on this phone only') + '</div></div></div>';
+      if (account) {
+        html += '<div class="sync-row">' + syncLine() + '<button class="mini-btn ghost" data-act="sync-now">Sync now</button></div>';
+      } else if (Cloud.available()) {
+        html += '<div class="signin-box"><p>Sign in to keep your saved games, stats and achievements in your account and pick up on any device. Games on this phone move into your account.</p>' +
+          '<button class="primary google" data-act="signin-google"' + (ui.authBusy ? ' disabled' : '') + '><span class="g">G</span> Continue with Google</button>' +
+          '<button class="secondary" data-act="open-email">Sign in with email</button>' +
+          (ui.authErr ? '<p class="err">' + esc(ui.authErr) + '</p>' : '') + '</div>';
+      } else {
+        html += '<p class="muted" style="font-size:13px;margin:8px 0 0">Accounts are coming soon. Stats and achievements are kept on this phone for now.</p>';
+      }
+      if (ui.authMsg) html += '<p class="okmsg">' + esc(ui.authMsg) + '</p>';
+      function cell(v, l) { return '<div class="stat"><b>' + v + '</b><span>' + l + '</span></div>'; }
+      html += '<div class="label">Stats</div><div class="stats">' +
+        cell(st.games, 'Games') + cell(st.wins, 'Wins') + cell(st.games ? st.winPct + '%' : '\u2014', 'Win rate') +
+        cell(st.streak, 'Win streak') + cell(st.bestStreak, 'Best streak') + cell(st.hands, 'Hands') +
+        cell(st.bidsMade, 'Bids made') + cell(st.bidsSet, 'Times set') + cell(st.oppSet, 'Sets on them') +
+        cell(st.boardsMade + '/' + st.boardsBid, 'Boards made') + cell(st.quadBoardsMade, 'Quad Boards') + cell(st.oppBoardsSet, 'Boards busted') +
+        cell(st.rainbowsMade + '/' + st.rainbowsBid, 'Rainbows') + cell(st.bostonsMade + '/' + st.bostonsBid, 'Bostons') + cell(st.bagPenalties, 'Bag penalties') +
+        cell(st.highScore == null ? '\u2014' : st.highScore, 'High score') + cell(st.bestMargin == null ? '\u2014' : '+' + st.bestMargin, 'Biggest win') + cell(st.myTricks, 'Your tricks') +
+        '</div>';
+      html += '<div class="label">Achievements \u00b7 ' + got + ' of ' + achs.length + '</div><div class="achs">' + achs.map(function (a) {
+        return '<div class="ach' + (a.unlocked ? ' on' : '') + '"><span class="ic">' + (a.unlocked ? a.icon : '\ud83d\udd12') + '</span><div><b>' + esc(a.name) + '</b><span>' + esc(a.desc) + (a.unlocked && a.at ? ' \u00b7 ' + esc(new Date(a.at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })) : '') + '</span></div></div>';
+      }).join('') + '</div>';
+      var recent = recs.slice().sort(function (a, b) { return b.finishedAt - a.finishedAt; }).slice(0, 10);
+      html += '<div class="label">Finished games</div>';
+      if (!recent.length) html += '<p class="muted" style="font-size:13px">Finish a game to start your record.</p>';
+      else html += '<div class="hist">' + recent.map(function (r) {
+        return '<div class="hrow"><span class="res ' + (r.won ? 'w' : r.tied ? 't' : 'l') + '">' + (r.won ? 'W' : r.tied ? 'T' : 'L') + '</span><span class="hd">' + esc(fmtDate(r.finishedAt)) + ' \u00b7 ' + r.maxCards + ' cards</span><span class="hs">' + r.us + '\u2013' + r.them + '</span></div>';
+      }).join('') + '</div>';
+      if (account) html += '<button class="secondary" data-act="sign-out">Sign out</button><p class="muted" style="font-size:12px;margin-top:8px">Signing out keeps everything in your account. This phone goes back to guest play.</p>';
+      return html + '<button class="secondary" data-act="close-sheet">Done</button>';
+    }
+    function emailHTML() {
+      var m = ui.emailMode || 'signin';
+      var f = ui.form || {};
+      var title = m === 'create' ? 'Create account' : m === 'reset' ? 'Reset password' : 'Sign in with email';
+      var html = '<h2>' + title + '</h2>';
+      if (m === 'create') html += '<div class="label">Your name</div><input id="f-name" maxlength="40" autocomplete="name" value="' + esc(f.name || (prefs.name !== 'You' ? prefs.name : '')) + '">';
+      html += '<div class="label">Email</div><input id="f-email" type="email" inputmode="email" autocomplete="email" autocapitalize="off" value="' + esc(f.email || '') + '">';
+      if (m !== 'reset') html += '<div class="label">Password</div><input id="f-pw" type="password" autocomplete="' + (m === 'create' ? 'new-password' : 'current-password') + '" minlength="6">';
+      if (ui.authErr) html += '<p class="err">' + esc(ui.authErr) + '</p>';
+      if (ui.authMsg) html += '<p class="okmsg">' + esc(ui.authMsg) + '</p>';
+      html += '<button class="primary" data-act="email-submit"' + (ui.authBusy ? ' disabled' : '') + '>' + (ui.authBusy ? 'One moment\u2026' : m === 'create' ? 'Create account' : m === 'reset' ? 'Send reset email' : 'Sign in') + '</button>';
+      if (m === 'signin') html += '<button class="secondary" data-act="email-mode" data-mode="create">New here? Create account</button><button class="linkish" data-act="email-mode" data-mode="reset">Forgot password?</button>';
+      else html += '<button class="secondary" data-act="email-mode" data-mode="signin">I already have an account</button>';
+      return html + '<button class="linkish" data-act="open-profile">Back</button>';
+    }
+    function readForm() {
+      ui.form = ui.form || {};
+      ['name', 'email'].forEach(function (k) { var el = document.getElementById('f-' + k); if (el) ui.form[k] = el.value.trim(); });
+      var pw = document.getElementById('f-pw');
+      return pw ? pw.value : '';
+    }
+    function authRun(p, after) {
+      ui.authBusy = true; ui.authErr = ''; ui.authMsg = ''; render();
+      p.then(function (r) { ui.authBusy = false; if (after) after(r); render(); })
+        .catch(function (err) { ui.authBusy = false; ui.authErr = Cloud.friendly(err); render(); });
+    }
+
+    // ---------- accounts + sync ----------
+    function setSyncStatus(s, err) {
+      syncInfo.status = s;
+      if (s === 'synced') syncInfo.at = Date.now();
+      syncInfo.err = err ? Cloud.friendly(err) : '';
+      if (ui.sheet && (ui.sheet.type === 'profile' || ui.sheet.type === 'saves')) render();
+    }
+    function startSync() {
+      if (sync) sync.stop();
+      sync = Sync.createSync({
+        store: store, uid: account.uid, E: E, Stats: Stats, remote: Cloud.remote(account.uid),
+        name: function () { return account.name || prefs.name; },
+        onStatus: setSyncStatus, onChange: remoteChanged
+      });
+      sync.syncAll();
+    }
+    // Another device changed or deleted games: refresh what's on screen if it's affected.
+    function remoteChanged() {
+      if (ui.hold) return;
+      var cur = gameId ? store.get(gameId) : null;
+      if (gameId && !cur) { clearTimeout(ui.timer); state = null; gameId = null; ui.sheet = { type: 'saves' }; }
+      else if (cur && cur.state && JSON.stringify(cur.state) !== JSON.stringify(state)) { clearTimeout(ui.timer); state = cur.state; if (ui.sheet && (ui.sheet.type === 'roundend' || ui.sheet.type === 'gameover')) ui.sheet = null; ui.toast = 'Updated from your other device'; }
+      else if (!state) { var c = store.current(); if (c && c.state && c.state.round) { state = c.state; gameId = c.id; if (ui.sheet && ui.sheet.type === 'newgame') ui.sheet = null; } }
+      render(); pump();
+    }
+    function onCloudUser(info) {
+      if (info) {
+        var fresh = !account || account.uid !== info.uid;
+        account = { uid: info.uid, email: info.email, name: info.name || (account && account.uid === info.uid ? account.name : '') };
+        try { localStorage.setItem(ACCOUNT_KEY, JSON.stringify(account)); } catch (e) {}
+        if (fresh) {
+          var moved = store.adoptGuest(account.uid);
+          store.setOwner(account.uid);
+          if (!state) { var c = store.current(); if (c && c.state && c.state.round) { state = c.state; gameId = c.id; } }
+          backfillHistory();
+          ui.authMsg = 'Signed in' + (moved.games ? '. ' + moved.games + ' game' + (moved.games === 1 ? '' : 's') + ' from this phone moved into your account.' : '.');
+          if (ui.sheet && ui.sheet.type === 'email') ui.sheet = { type: 'profile' };
+        }
+        startSync();
+        render(); if (fresh) pump();
+      } else if (account) {
+        goGuest();
+      }
+    }
+    function goGuest() {
+      if (sync) { sync.stop(); sync = null; }
+      clearTimeout(ui.timer);
+      account = null;
+      try { localStorage.removeItem(ACCOUNT_KEY); } catch (e) {}
+      store.setOwner(null);
+      syncInfo = { status: '', at: 0, err: '' };
+      state = null; gameId = null; ui.hold = null;
+      var c = store.current();
+      if (c && c.state && c.state.round && c.state.engine === E.ENGINE_VERSION) { state = c.state; gameId = c.id; }
+      ui.sheet = state ? { type: 'profile' } : { type: 'newgame' };
+      render(); pump();
+    }
+    function startCloud() {
+      if (!Cloud.available()) return;
+      Cloud.onUser(onCloudUser);
+      Cloud.load().catch(function (err) { if (account) setSyncStatus('offline', err); });
+    }
+
     function menuHTML() {
       return '<h2>Menu</h2>' +
+        '<button class="menu-item" data-act="open-profile">Profile &amp; achievements' + (account ? '<span class="mi-sub">' + esc(account.email || account.name || 'Signed in') + '</span>' : Cloud.available() ? '<span class="mi-sub">Guest \u00b7 sign in to sync</span>' : '') + '</button>' +
         '<button class="menu-item" data-act="open-score">Scorecard</button>' +
         '<button class="menu-item" data-act="open-saves">Saved games</button>' +
         '<button class="menu-item" data-act="open-rules">How to play</button>' +
@@ -751,7 +963,7 @@
 
     function sheetHTML(sc) {
       var sh = ui.sheet;
-      if (!sh) return '';
+      if (!sh) { ui.shownSheet = null; return ''; }
       var inner = '';
       var dismissable = true;
       if (sh.type === 'rules') inner = rulesHTML();
@@ -762,7 +974,11 @@
       else if (sh.type === 'menu') inner = menuHTML();
       else if (sh.type === 'saves') { inner = savesHTML(); dismissable = !!state; }
       else if (sh.type === 'confirm-delete') inner = confirmDeleteHTML(sh.id);
-      return '<div class="backdrop"' + (dismissable ? ' data-act="close-sheet"' : '') + '></div><div class="sheet" role="dialog"><div class="grab"></div>' + inner + '</div>';
+      else if (sh.type === 'profile') inner = profileHTML();
+      else if (sh.type === 'email') inner = emailHTML();
+      var still = ui.shownSheet === sh.type + (sh.id || '');
+      ui.shownSheet = sh.type + (sh.id || '');
+      return '<div class="backdrop"' + (dismissable ? ' data-act="close-sheet"' : '') + '></div><div class="sheet' + (still ? ' still' : '') + '" role="dialog"><div class="grab"></div>' + inner + '</div>';
     }
 
     // ---------- events ----------
@@ -794,13 +1010,24 @@
       else if (a === 'next') { ui.sheet = null; act({ type: 'next' }); }
       else if (a === 'close-sheet') {
         if (!state) { ui.sheet = { type: 'newgame' }; render(); return; }
-        if (state && (state.phase === 'roundEnd' || state.phase === 'gameOver') && ui.sheet && ['score', 'rules', 'menu', 'newgame', 'saves', 'confirm-delete'].indexOf(ui.sheet.type) >= 0) {
+        ui.authMsg = ''; ui.authErr = '';
+        if (state && (state.phase === 'roundEnd' || state.phase === 'gameOver') && ui.sheet && ['score', 'rules', 'menu', 'newgame', 'saves', 'confirm-delete', 'profile', 'email'].indexOf(ui.sheet.type) >= 0) {
           ui.sheet = { type: state.phase === 'gameOver' ? 'gameover' : 'roundend' };
         } else ui.sheet = null;
         render(); pump();
       }
       else if (a === 'menu') { ui.sheet = { type: 'menu' }; render(); }
       else if (a === 'open-saves') { ui.sheet = { type: 'saves' }; render(); }
+      else if (a === 'open-profile') { ev.preventDefault(); ui.authErr = ''; ui.sheet = { type: 'profile' }; render(); if (account && sync) sync.syncAll(); }
+      else if (a === 'open-email') { ui.authErr = ''; ui.authMsg = ''; ui.emailMode = 'signin'; ui.sheet = { type: 'email' }; render(); }
+      else if (a === 'email-mode') { readForm(); ui.authErr = ''; ui.authMsg = ''; ui.emailMode = t.getAttribute('data-mode'); render(); }
+      else if (a === 'email-submit') { submitEmail(); }
+      else if (a === 'signin-google') { authRun(Cloud.signInGoogle()); }
+      else if (a === 'sync-now') { if (sync) sync.syncAll(); }
+      else if (a === 'sign-out') {
+        var done = function () { Cloud.signOut().then(goGuest, goGuest); };
+        if (sync) sync.pushNow().then(done, done); else done();
+      }
       else if (a === 'resume') { resumeGame(t.getAttribute('data-id')); }
       else if (a === 'ask-delete') { ui.sheet = { type: 'confirm-delete', id: t.getAttribute('data-id') }; render(); }
       else if (a === 'confirm-delete') {
@@ -821,18 +1048,42 @@
       else if (a === 'toggle-speed') { prefs.speed = prefs.speed === 'fast' ? 'normal' : 'fast'; save(); render(); }
       else if (a === 'start') { readName(); startGame(ui.newMax || prefs.lastMax || 13); }
     }
+    function submitEmail() {
+      if (ui.authBusy) return;
+      var pw = readForm();
+      var f = ui.form;
+      var m = ui.emailMode || 'signin';
+      if (!f.email) { ui.authErr = 'Enter your email.'; render(); return; }
+      if (m === 'reset') authRun(Cloud.resetPassword(f.email), function () { ui.authMsg = 'Check your email for a link to reset your password.'; });
+      else if (m === 'create') {
+        if (f.name) prefs.name = f.name.slice(0, 14);
+        authRun(Cloud.createAccount(f.email, pw, f.name || ''), function () { if (account && f.name) { account.name = f.name; try { localStorage.setItem(ACCOUNT_KEY, JSON.stringify(account)); } catch (e) {} } });
+      }
+      else authRun(Cloud.signInEmail(f.email, pw));
+    }
     function readName() {
       var el = document.getElementById('ng-name');
       if (el) prefs.name = (el.value || '').trim().slice(0, 14) || 'You';
     }
 
     document.getElementById('app').addEventListener('click', onClick);
+    document.getElementById('app').addEventListener('keydown', function (ev) {
+      if (ev.key === 'Enter' && ev.target && /^f-/.test(ev.target.id || '')) { ev.preventDefault(); submitEmail(); }
+    });
+    document.addEventListener('visibilitychange', function () {
+      if (!sync) return;
+      if (document.visibilityState === 'hidden') sync.pushNow();
+      else if (Date.now() - (syncInfo.at || 0) > 30000) sync.syncAll();
+    });
+    window.addEventListener('online', function () { if (sync) sync.syncAll(); });
     window.addEventListener('resize', function () { if (state) render(); });
 
     // expose a tiny hook for automated tests
-    window.__baPlay = { get state() { return state; }, get gameId() { return gameId; }, act: act, pump: pump, ui: ui, store: store };
+    window.__baPlay = { get state() { return state; }, get gameId() { return gameId; }, get account() { return account; }, get sync() { return sync; }, act: act, pump: pump, ui: ui, store: store, onCloudUser: onCloudUser, render: render };
 
     load();
+    backfillHistory();
+    startCloud();
     if (!state) { ui.newMax = prefs.lastMax || 13; ui.sheet = { type: 'newgame' }; render(); }
     else {
       if (state.round) state.names[0] = prefs.name || 'You';

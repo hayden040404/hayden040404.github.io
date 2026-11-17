@@ -1,0 +1,85 @@
+rules_version = '2';
+// Back Alley Play — every signed-in player can read and write ONLY their own documents
+// under users/{their uid}. Everything else is denied (including future collections such as
+// tables/{tableId} for online play, which will get their own rules when that feature ships).
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isOwner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+    function validId(id) {
+      return id.size() >= 1 && id.size() <= 64 && id.matches('^[A-Za-z0-9_-]+$');
+    }
+    function smallInt(v) {
+      return v is int && v >= -1000000000 && v <= 100000000000000;
+    }
+    function shortStr(v, n) {
+      return v is string && v.size() <= n;
+    }
+
+    function validSeat(s, uid) {
+      return s is map
+        && s.keys().hasOnly(['kind', 'uid', 'name']) && s.keys().hasAll(['kind', 'uid', 'name'])
+        && s.kind in ['human', 'ai']
+        && shortStr(s.name, 30)
+        && (s.kind == 'human' ? s.uid == uid : s.uid == '');
+    }
+    function validGame(d, uid) {
+      return d.keys().hasOnly(['schema', 'mode', 'ownerUid', 'seats', 'startedAt', 'updatedAt', 'finished', 'maxCards', 'summary', 'state'])
+        && d.keys().hasAll(['schema', 'mode', 'ownerUid', 'seats', 'startedAt', 'updatedAt', 'finished', 'maxCards', 'summary', 'state'])
+        && d.schema == 1
+        && d.mode == 'solo'
+        && d.ownerUid == uid
+        && d.seats is list && d.seats.size() == 4
+        && validSeat(d.seats[0], uid) && validSeat(d.seats[1], uid) && validSeat(d.seats[2], uid) && validSeat(d.seats[3], uid)
+        && smallInt(d.startedAt) && smallInt(d.updatedAt)
+        && d.finished is bool
+        && d.maxCards is int && d.maxCards >= 1 && d.maxCards <= 13
+        && d.summary is map
+        && d.summary.keys().hasOnly(['handIndex', 'handsTotal', 'phase', 'us', 'them'])
+        && smallInt(d.summary.handIndex) && smallInt(d.summary.handsTotal)
+        && shortStr(d.summary.phase, 16) && smallInt(d.summary.us) && smallInt(d.summary.them)
+        && d.state is string && d.state.size() <= 400000;
+    }
+    function validHistory(d) {
+      return d.keys().hasOnly(['schema', 'mode', 'seat', 'startedAt', 'finishedAt', 'maxCards', 'handsTotal', 'us', 'them', 'won', 'tied', 'counters'])
+        && d.keys().hasAll(['schema', 'mode', 'seat', 'startedAt', 'finishedAt', 'maxCards', 'handsTotal', 'us', 'them', 'won', 'tied', 'counters'])
+        && d.schema == 1
+        && d.mode == 'solo'
+        && d.seat is int && d.seat >= 0 && d.seat <= 3
+        && smallInt(d.startedAt) && smallInt(d.finishedAt)
+        && d.maxCards is int && d.maxCards >= 1 && d.maxCards <= 13
+        && d.handsTotal is int && d.handsTotal >= 1 && d.handsTotal <= 26
+        && smallInt(d.us) && smallInt(d.them)
+        && d.won is bool && d.tied is bool
+        && d.counters is map && d.counters.size() <= 40;
+    }
+    function validProfile(d) {
+      return d.keys().hasOnly(['schema', 'displayName', 'stats', 'achievements', 'updatedAt'])
+        && d.schema == 1
+        && shortStr(d.displayName, 60)
+        && d.stats is map && d.stats.size() <= 60
+        && d.achievements is list && d.achievements.size() <= 60
+        && d.updatedAt == request.time;
+    }
+
+    match /users/{uid} {
+      allow get: if isOwner(uid);
+      allow create, update: if isOwner(uid) && validProfile(request.resource.data);
+      allow delete: if isOwner(uid);
+
+      match /games/{gameId} {
+        allow read: if isOwner(uid);
+        allow create, update: if isOwner(uid) && validId(gameId) && validGame(request.resource.data, uid);
+        allow delete: if isOwner(uid);
+      }
+
+      match /history/{gameId} {
+        allow read: if isOwner(uid);
+        allow create, update: if isOwner(uid) && validId(gameId) && validHistory(request.resource.data);
+        allow delete: if isOwner(uid);
+      }
+    }
+  }
+}

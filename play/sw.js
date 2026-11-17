@@ -5,13 +5,17 @@
  */
 'use strict';
 
-const CACHE_NAME = 'backalley-play-v5';
+const CACHE_NAME = 'backalley-play-v6';
 const ASSETS = [
   './',
   './index.html',
   './engine.js',
   './ai.js',
   './saves.js',
+  './stats.js',
+  './sync.js',
+  './cloud.js',
+  './firebase-config.js',
   './manifest.webmanifest',
   '../score.js'
 ];
