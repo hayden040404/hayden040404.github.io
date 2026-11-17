@@ -106,7 +106,7 @@ function normalizeBoard(value) {
 /**
  * Board levels a team may pick on this hand. Board escalates one step at a time:
  * nobody opens above Board x2; a partner can Double their teammate's Board; once the other
- * team holds a Board, the only way in is the next level up (which takes the Board from them).
+ * team holds a Board, the only way in is one level above the highest Board (both teams keep theirs).
  * Always includes 0 (no Board) and the team's current level (so mistakes can be fixed).
  */
 function allowedBoardLevels(hand, side) {
@@ -114,8 +114,11 @@ function allowedBoardLevels(hand, side) {
   const own = normalizeBoard(hand[side + 'Board']);
   const oth = normalizeBoard(hand[other + 'Board']);
   let allowed;
-  if (oth) allowed = [0].concat(oth < 8 ? [oth + 2] : []);
-  else if (own >= 6) allowed = BOARD_MULTS.filter(function (m) { return m <= own; });
+  if (oth) {
+    // Raising goes one level above the highest Board on the hand; both teams keep their Boards.
+    const top = Math.max(own, oth);
+    allowed = [0].concat(top < 8 ? [top + 2] : []);
+  } else if (own >= 6) allowed = BOARD_MULTS.filter(function (m) { return m <= own; });
   else allowed = own ? [0, 2, 4] : [0, 2];
   if (own && allowed.indexOf(own) < 0) allowed.push(own);
   return allowed.sort(function (x, y) { return x - y; });
@@ -369,9 +372,6 @@ function validateContracts(hand) {
       warnings.push(team + ' declared Boston, so the bid should be 6 to ' + cards + '.');
     }
   });
-  if (normalizeBoard(hand.aBoard) && normalizeBoard(hand.bBoard)) {
-    warnings.push('Only one team can hold the Board \u2014 the last raise takes it, and the other team plays its normal bid.');
-  }
   if (hand.aBostonMade === true && hand.bBostonMade === true) {
     warnings.push('Both teams can’t have taken the first 6 tricks.');
   }
@@ -434,7 +434,7 @@ function firstIncompleteIndex(hands) {
   return -1;
 }
 
-const APP_VERSION = 'v15';
+const APP_VERSION = 'v16';
 
 const api = {
   APP_VERSION: APP_VERSION,
